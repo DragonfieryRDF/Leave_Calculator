@@ -1,0 +1,1291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Leave Calculator</title>
+<meta name="description" content="Plan annual leave and leave in lieu years ahead.">
+<meta name="theme-color" content="#0d7a6f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Leave">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  /* Layout: app shell — sticky header with tabs on desktop, bottom tab bar on phones; one panel per tab. */
+  :root {
+    --bg: #f3f6f5;
+    --surface: #ffffff;
+    --sunk: #eaefee;
+    --ink: #142120;
+    --muted: #5b6b69;
+    --line: #dce4e2;
+    --annual: #0d7a6f;
+    --annual-soft: #ddf1ed;
+    --lieu: #6c45c4;
+    --lieu-soft: #eee8fb;
+    --planned: #9a5b00;
+    --planned-soft: #fcf0d9;
+    --bad: #c2332a;
+    --bad-soft: #fbe6e4;
+    --on-accent: #ffffff;
+    --font-display: -apple-system, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --font-body: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, sans-serif;
+    --radius: 14px;
+    --nav-h: 64px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1514; --surface: #162020; --sunk: #1c2827; --ink: #e4eeec; --muted: #93a4a1; --line: #263432;
+      --annual: #4fc4b4; --annual-soft: #143330; --lieu: #ad8eff; --lieu-soft: #261e3d;
+      --planned: #e8aa4c; --planned-soft: #33270f; --bad: #ff7d72; --bad-soft: #3b1d1a; --on-accent: #0b1514;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1514; --surface: #162020; --sunk: #1c2827; --ink: #e4eeec; --muted: #93a4a1; --line: #263432;
+    --annual: #4fc4b4; --annual-soft: #143330; --lieu: #ad8eff; --lieu-soft: #261e3d;
+    --planned: #e8aa4c; --planned-soft: #33270f; --bad: #ff7d72; --bad-soft: #3b1d1a; --on-accent: #0b1514;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.5 var(--font-body);
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); }
+  h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+  h2 { font-size: 18px; font-weight: 650; }
+  h3 { font-size: 15px; font-weight: 600; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--annual); outline-offset: 2px; }
+
+  /* Header */
+  .top {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    background: var(--surface); border-bottom: 1px solid var(--line);
+  }
+  .top-inner {
+    max-width: 1080px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 12px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--annual); color: var(--on-accent); display: grid; place-items: center; }
+  .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+  .sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+  .sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .sync[data-s="cloud"]::before { background: var(--annual); }
+  .sync[data-s="saving"]::before { background: var(--planned); }
+  .sync[data-s="error"]::before { background: var(--bad); }
+
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    border: 0; background: none; cursor: pointer; border-radius: 10px;
+    padding: 8px 12px; color: var(--muted); font-weight: 600; font-size: 14px;
+    display: inline-flex; align-items: center; gap: 7px; min-height: 40px;
+  }
+  .tab svg { width: 18px; height: 18px; flex: none; }
+  .tab:hover { color: var(--ink); background: var(--sunk); }
+  .tab[aria-current="page"] { color: var(--annual); background: var(--annual-soft); }
+  .top .tabs { width: 100%; }
+
+  @media (max-width: 760px) {
+    .top .tabs { display: none; }
+    .bottom-nav {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+      background: var(--surface); border-top: 1px solid var(--line);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: max(8px, env(safe-area-inset-left, 0px));
+      padding-right: max(8px, env(safe-area-inset-right, 0px));
+    }
+    .bottom-nav .tabs { justify-content: space-around; }
+    .bottom-nav .tab { flex-direction: column; gap: 2px; font-size: 11px; padding: 8px 4px; min-height: var(--nav-h); flex: 1; border-radius: 0; background: none; }
+    .bottom-nav .tab svg { width: 22px; height: 22px; }
+    .bottom-nav .tab[aria-current="page"] { background: none; }
+    main { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px) !important; }
+  }
+  @media (min-width: 761px) { .bottom-nav { display: none; } }
+
+  /* Page */
+  main {
+    max-width: 1080px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 48px;
+  }
+  .panel { display: grid; gap: 16px; }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .panel-head p { margin: 0; color: var(--muted); font-size: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+  .card > h3 + * { margin-top: 12px; }
+  .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .cols-3 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .cols, .cols-3 { grid-template-columns: minmax(0, 1fr); } }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  .hint b { color: var(--ink); font-weight: 600; }
+
+  /* Key numbers */
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 860px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+  .kpi .k { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .kpi .v { font-family: var(--font-display); font-size: 34px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .kpi .v small { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
+  .kpi .s { font-size: 12.5px; color: var(--muted); }
+  .kpi.annual { background: var(--annual); border-color: var(--annual); color: var(--on-accent); }
+  .kpi.annual .k, .kpi.annual .s, .kpi.annual .v small { color: inherit; opacity: .85; }
+  .kpi.lieu .v { color: var(--lieu); }
+  .kpi .v.neg { color: var(--bad); }
+
+  /* Alerts */
+  .alerts { display: grid; gap: 8px; }
+  .alert { background: var(--bad-soft); color: var(--bad); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .alert.ok { background: var(--annual-soft); color: var(--annual); }
+
+  /* Chips & tags */
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; vertical-align: 1px; white-space: nowrap; }
+  .tag.planned, .tag.est { background: var(--planned-soft); color: var(--planned); }
+  .tag.lieu { background: var(--lieu-soft); color: var(--lieu); }
+  .tag.annual, .tag.ok { background: var(--annual-soft); color: var(--annual); }
+  .tag.bad { background: var(--bad-soft); color: var(--bad); }
+  .tag.now { background: var(--ink); color: var(--surface); }
+
+  /* Segmented control */
+  .seg { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+  .seg button { border: 0; background: none; border-radius: 8px; padding: 7px 12px; min-height: 36px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+  .seg.type button[data-v="annual"][aria-pressed="true"] { color: var(--annual); }
+  .seg.type button[data-v="lieu"][aria-pressed="true"] { color: var(--lieu); }
+
+  /* Forms */
+  .form { display: grid; gap: 12px; }
+  .field { display: grid; gap: 5px; min-width: 0; }
+  .field > span { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .field input, .field select {
+    width: 100%; min-height: 44px; font-size: 16px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  }
+  .field input:focus, .field select:focus { border-color: var(--annual); outline: none; box-shadow: 0 0 0 3px var(--annual-soft); }
+  .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 420px) { .row2.stack { grid-template-columns: minmax(0, 1fr); } }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 10px;
+    padding: 9px 16px; min-height: 44px; font-weight: 600; cursor: pointer; font-size: 15px;
+  }
+  .btn:hover { background: var(--sunk); }
+  .btn.primary { background: var(--annual); border-color: var(--annual); color: var(--on-accent); }
+  .btn.primary.lieu { background: var(--lieu); border-color: var(--lieu); }
+  .btn.danger { color: var(--bad); }
+  .btn.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .x { border: 0; background: none; color: var(--muted); cursor: pointer; width: 36px; height: 36px; border-radius: 8px; font-size: 16px; }
+  .x:hover { background: var(--bad-soft); color: var(--bad); }
+
+  .preview { border-radius: 10px; padding: 10px 12px; background: var(--sunk); font-size: 14px; display: grid; gap: 4px; }
+  .preview .bad { color: var(--bad); font-weight: 600; }
+  .preview:empty { display: none; }
+  .confirm { border-radius: 10px; padding: 10px 12px; background: var(--planned-soft); color: var(--planned); font-size: 14px; display: grid; gap: 8px; }
+
+  /* Lists */
+  .list { display: grid; }
+  .list-month { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 14px 0 6px; border-bottom: 1px solid var(--line); }
+  .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); min-height: 52px; }
+  .item:last-child { border-bottom: 0; }
+  .date-badge { width: 46px; flex: none; text-align: center; border-radius: 10px; background: var(--annual-soft); color: var(--annual); padding: 4px 0; line-height: 1.15; }
+  .date-badge.lieu { background: var(--lieu-soft); color: var(--lieu); }
+  .date-badge.sat { background: var(--lieu-soft); color: var(--lieu); }
+  .date-badge b { display: block; font-family: var(--font-display); font-size: 18px; }
+  .date-badge span { font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .item-main { flex: 1; min-width: 0; }
+  .item-main .t { font-weight: 600; overflow-wrap: anywhere; }
+  .item-main .m { font-size: 13px; color: var(--muted); }
+  .item-amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .empty { color: var(--muted); padding: 14px 0; font-size: 14px; }
+
+  /* Tables */
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
+  th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  @media (max-width: 420px) { th, td { padding-inline: 5px; } table { font-size: 13.5px; } }
+  th:first-child, td:first-child { text-align: left; padding-left: 0; }
+  th:last-child, td:last-child { padding-right: 0; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  th.lieu, td.lieu { color: var(--lieu); }
+  tr.current td { background: var(--annual-soft); }
+  tr.current td:first-child { box-shadow: inset 3px 0 0 var(--annual); padding-left: 8px; }
+  tr.future td { color: var(--muted); }
+  tr.future td.strong, tr.future td.lieu { color: var(--ink); }
+  tr.future td.lieu { color: var(--lieu); }
+  td.strong { font-weight: 650; }
+  td.neg, td .neg { color: var(--bad) !important; font-weight: 650; }
+  td .sub { display: block; font-size: 11.5px; color: var(--muted); font-weight: 500; }
+  td input { width: 76px; min-height: 36px; font-size: 16px; text-align: right; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+  td input[type="date"] { width: auto; text-align: left; }
+  #yearRows tr { cursor: pointer; }
+  #yearRows tr:hover td { background: var(--sunk); }
+  @media (max-width: 760px) { .opt { display: none; } }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+
+  /* Chart */
+  .chart svg { width: 100%; height: auto; display: block; }
+  .chart .grid line { stroke: var(--line); }
+  .chart .zero { stroke: var(--muted); }
+  .chart text { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
+  .chart text.val { fill: var(--ink); font-weight: 600; }
+  .chart .b-past { fill: var(--annual); }
+  .chart .b-cur { fill: var(--annual); }
+  .chart .b-fut { fill: var(--annual); fill-opacity: .38; }
+  .chart .b-neg { fill: var(--bad); fill-opacity: 1; }
+  .chart .now-line { stroke: var(--ink); stroke-dasharray: 3 3; }
+
+  details summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+  label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--lieu); font-weight: 600; font-size: 14px; min-height: 36px; }
+  label.check input { width: 20px; height: 20px; accent-color: var(--lieu); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .panel { animation: fade .18s ease-out; }
+    @keyframes fade { from { opacity: .6; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  }
+</style>
+
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="M8.5 15l2.2 2.2 4.8-4.7"/></svg>
+      </div>
+      <h1>Leave Calculator</h1>
+    </div>
+    <span class="sync" id="sync" data-s="local">Saved on this device</span>
+    <nav class="tabs" id="topTabs" aria-label="Sections"></nav>
+  </div>
+</header>
+
+<main>
+  <!-- Overview -->
+  <section class="panel" id="p-overview" data-panel="overview">
+    <div class="kpis" id="kpis"></div>
+    <div class="alerts" id="alerts"></div>
+    <div class="cols-3">
+      <div class="card">
+        <div class="panel-head">
+          <h3 id="chartTitle">Annual leave balance</h3>
+          <span class="small muted">at the end of each month</span>
+        </div>
+        <div class="chart" id="chart"></div>
+        <div class="legend">
+          <span><i style="background:var(--annual)"></i>Credited &amp; used so far</span>
+          <span><i style="background:var(--annual);opacity:.38"></i>Projected, including planned leave</span>
+          <span><i style="background:var(--bad)"></i>Below zero</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="panel-head">
+          <h3>Coming up</h3>
+          <button class="btn small" data-go="leave">Plan leave</button>
+        </div>
+        <div class="list" id="upcoming"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Leave -->
+  <section class="panel" id="p-leave" data-panel="leave" hidden>
+    <div class="cols">
+      <div class="card">
+        <h3>Add leave</h3>
+        <form class="form" id="leaveForm" autocomplete="off">
+          <div class="seg type" id="eType" role="group" aria-label="Leave type">
+            <button type="button" data-v="annual" aria-pressed="true">Annual leave</button>
+            <button type="button" data-v="lieu" aria-pressed="false">Leave in lieu</button>
+          </div>
+          <div class="row2 stack">
+            <label class="field"><span>From</span><input type="date" id="eDate" required></label>
+            <label class="field"><span>To (optional)</span><input type="date" id="eTo"></label>
+          </div>
+          <div class="seg" id="eAmt" role="group" aria-label="Amount">
+            <button type="button" data-v="1" aria-pressed="true">Full day</button>
+            <button type="button" data-v="0.5" aria-pressed="false">Half day</button>
+          </div>
+          <label class="field"><span>Note</span><input type="text" id="eNote" placeholder="e.g. Japan trip"></label>
+          <div class="preview" id="preview" aria-live="polite"></div>
+          <div class="confirm" id="confirm" hidden></div>
+          <div class="btn-row">
+            <button class="btn primary" id="addBtn" type="submit">Add leave</button>
+            <span class="small muted" id="addMsg" aria-live="polite"></span>
+          </div>
+          <p class="hint" style="margin:0">A date range adds every weekday in it. Dates after today count as <b>planned</b>.</p>
+        </form>
+      </div>
+      <div class="card">
+        <div class="panel-head">
+          <h3>Your leave</h3>
+          <div class="seg" id="leaveFilter" role="group" aria-label="Show">
+            <button type="button" data-v="upcoming" aria-pressed="true">Upcoming</button>
+            <button type="button" data-v="past" aria-pressed="false">Taken</button>
+            <button type="button" data-v="all" aria-pressed="false">All</button>
+          </div>
+        </div>
+        <div class="list" id="entryList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Balances -->
+  <section class="panel" id="p-balances" data-panel="balances" hidden>
+    <div class="panel-head">
+      <div class="seg" id="balView" role="group" aria-label="View">
+        <button type="button" data-v="months" aria-pressed="true">By month</button>
+        <button type="button" data-v="years" aria-pressed="false">By year</button>
+      </div>
+      <div class="seg" id="yearPick" role="group" aria-label="Working year"></div>
+    </div>
+
+    <div class="card" id="monthsCard">
+      <h3 id="monthTitle">Month by month</h3>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th class="opt">Period</th>
+              <th title="What you can use during the month">Available</th>
+              <th>Used</th>
+              <th title="Credited at the end of the month">Credit</th>
+              <th title="Balance at the end of the month">Balance</th>
+              <th class="opt" title="Carried in + everything credited by year end − used so far">Left for year</th>
+              <th class="lieu" title="Leave in lieu balance at the end of the month">In lieu</th>
+            </tr>
+          </thead>
+          <tbody id="monthRows"></tbody>
+        </table>
+      </div>
+      <p class="hint"><b>Available</b> is what you can use during the month: carried in, plus leave credited in earlier months, minus leave used before it. <b>Credit</b> arrives at month end. <b>Balance</b> is after that month's credit and leave (taken and planned). <span style="color:var(--lieu)">In lieu</span> is a separate balance.</p>
+    </div>
+
+    <div class="card" id="yearsCard" hidden>
+      <h3>Year by year</h3>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Working year</th>
+              <th>Per year</th>
+              <th class="opt">Carried in</th>
+              <th class="opt">Credited</th>
+              <th>Used</th>
+              <th>Year end</th>
+              <th title="Approved carry-over to next year">Carry over</th>
+              <th>Lost</th>
+              <th class="lieu opt">In lieu +/−</th>
+            </tr>
+          </thead>
+          <tbody id="yearRows"></tbody>
+        </table>
+      </div>
+      <p class="hint">Carry-over needs approval. Type the approved number of days in <b>Carry over</b>. Leave it blank to assume the most allowed (<span id="policyEcho">14</span> days). Tap a year to see its months.</p>
+    </div>
+  </section>
+
+  <!-- Leave in lieu -->
+  <section class="panel" id="p-lieu" data-panel="lieu" hidden>
+    <div class="cols">
+      <div class="card">
+        <h3>Saturday public holidays</h3>
+        <p class="hint" style="margin-top:4px">Each Singapore public holiday that falls on a Saturday earns 1 day of leave in lieu on that date.</p>
+        <div class="list" id="satList"></div>
+        <details style="margin-top:8px">
+          <summary id="allHolSummary">All public holidays</summary>
+          <div class="tablewrap">
+            <table>
+              <thead><tr><th>Date</th><th>Day</th><th style="text-align:left">Holiday</th><th>Status</th></tr></thead>
+              <tbody id="holidayRows"></tbody>
+            </table>
+          </div>
+          <p class="hint">2026 and 2027 dates are MOM's gazetted list. Later lunar-calendar holidays (Chinese New Year, Hari Raya, Vesak, Deepavali) are <b>estimates</b> and can move by a day or two. Correct a date here once MOM announces it.</p>
+        </details>
+      </div>
+      <div class="grid-stack" style="display:grid;gap:16px">
+        <div class="card">
+          <h3>Add leave in lieu yourself</h3>
+          <form class="form" id="lieuForm" autocomplete="off">
+            <div class="row2 stack">
+              <label class="field"><span>Date earned</span><input type="date" id="lDate" required></label>
+              <label class="field"><span>Days</span>
+                <select id="lAmt"><option value="1">1 day</option><option value="0.5">0.5 day</option></select>
+              </label>
+            </div>
+            <label class="field"><span>Note</span><input type="text" id="lNote" placeholder="e.g. Worked on a public holiday"></label>
+            <div class="btn-row"><button class="btn primary lieu" type="submit">Add leave in lieu</button></div>
+          </form>
+        </div>
+        <div class="card">
+          <div class="panel-head">
+            <h3>In lieu history</h3>
+            <span class="small muted">oldest used first</span>
+          </div>
+          <div class="list" id="ledgerList"></div>
+          <label class="field" style="margin-top:12px"><span>Leave in lieu expires after (months, blank = never)</span><input type="number" id="lieuExpiry" min="1" step="1" inputmode="numeric"></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Setup -->
+  <section class="panel" id="p-setup" data-panel="setup" hidden>
+    <div class="cols">
+      <div class="card">
+        <h3>Your job</h3>
+        <div class="form">
+          <div class="row2 stack">
+            <label class="field"><span>Date I started work</span><input type="date" id="startDate"></label>
+            <label class="field"><span>Leave per year when I started</span><input type="number" id="annual" min="0" step="0.5" inputmode="decimal"></label>
+          </div>
+          <p class="hint" style="margin:0">Leave is credited at the <b>end</b> of each full month of service: yearly leave ÷ 12. The month you started in earns nothing unless you started on the 1st.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Working year</h3>
+        <div class="form">
+          <div class="row2 stack">
+            <label class="field"><span>First year starts</span><input type="date" id="yearStart"></label>
+            <label class="field"><span>First year ends</span><input type="date" id="yearEnd"></label>
+          </div>
+          <div class="row2 stack">
+            <label class="field"><span>Carried into first year</span><input type="number" id="carry" step="0.5" inputmode="decimal"></label>
+            <label class="field"><span>Years to plan ahead</span><input type="number" id="years" min="1" max="20" step="1" inputmode="numeric"></label>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Service increase</h3>
+        <div class="form">
+          <div class="row2 stack">
+            <label class="field"><span>Extra days per year</span><input type="number" id="bonusDays" min="0" step="0.5" inputmode="decimal"></label>
+            <label class="field"><span>For every … years</span><input type="number" id="bonusEvery" min="1" step="1" inputmode="numeric"></label>
+          </div>
+          <label class="field"><span>Most leave per year (blank = no limit)</span><input type="number" id="maxAnnual" min="0" step="0.5" inputmode="decimal"></label>
+          <p class="hint" style="margin:0" id="bonusHint"></p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Year-end carry-over</h3>
+        <div class="form">
+          <label class="field"><span>Most days you can carry over</span><input type="number" id="policyCarry" min="0" step="0.5" inputmode="decimal"></label>
+          <p class="hint" style="margin:0">Carry-over needs approval each year. Enter the approved amount under <b>Balances → By year</b>.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Your data</h3>
+        <p class="hint" style="margin-top:6px">Everything is saved on this device only. Nothing is sent anywhere. Export a backup now and then (save it to Files or iCloud Drive), and use Import to move your leave to another device.</p>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn" id="exportBtn" type="button">Export backup</button>
+          <button class="btn" id="importBtn" type="button">Import backup</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+          <button class="btn danger" id="resetBtn" type="button">Clear all data</button>
+        </div>
+        <div class="confirm" id="resetConfirm" hidden style="margin-top:12px">
+          <span>This deletes your settings and every leave entry on this device.</span>
+          <div class="btn-row">
+            <button class="btn small danger" id="resetYes" type="button">Delete everything</button>
+            <button class="btn small" id="resetNo" type="button">Cancel</button>
+          </div>
+        </div>
+        <p class="small muted" id="dataMsg" aria-live="polite" style="margin:10px 0 0"></p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom-nav" aria-label="Sections"><div class="tabs" id="bottomTabs"></div></nav>
+
+<script>
+const KEY = 'leave-calculator-v1';
+const DAY = 86400000;
+const TABS = [
+  ['overview', 'Overview', '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>'],
+  ['leave', 'Leave', '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M12 13v5M9.5 15.5h5"/>'],
+  ['balances', 'Balances', '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'],
+  ['lieu', 'In lieu', '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>'],
+  ['setup', 'Setup', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'],
+];
+
+// Singapore public holidays. 2026–2027: MOM gazetted list. 2028–2031: estimates (lunar dates may shift).
+const HOLIDAYS = [
+  ['2026-01-01', "New Year's Day", 'official'], ['2026-02-17', 'Chinese New Year', 'official'],
+  ['2026-02-18', 'Chinese New Year (day 2)', 'official'], ['2026-03-21', 'Hari Raya Puasa', 'official'],
+  ['2026-04-03', 'Good Friday', 'official'], ['2026-05-01', 'Labour Day', 'official'],
+  ['2026-05-27', 'Hari Raya Haji', 'official'], ['2026-05-31', 'Vesak Day', 'official'],
+  ['2026-08-09', 'National Day', 'official'], ['2026-11-08', 'Deepavali', 'official'],
+  ['2026-12-25', 'Christmas Day', 'official'],
+
+  ['2027-01-01', "New Year's Day", 'official'], ['2027-02-06', 'Chinese New Year', 'official'],
+  ['2027-02-07', 'Chinese New Year (day 2)', 'official'], ['2027-03-10', 'Hari Raya Puasa', 'official'],
+  ['2027-03-26', 'Good Friday', 'official'], ['2027-05-01', 'Labour Day', 'official'],
+  ['2027-05-17', 'Hari Raya Haji', 'official'], ['2027-05-20', 'Vesak Day', 'official'],
+  ['2027-08-09', 'National Day', 'official'], ['2027-10-28', 'Deepavali', 'official'],
+  ['2027-12-25', 'Christmas Day', 'official'],
+
+  ['2028-01-01', "New Year's Day", 'fixed'], ['2028-01-26', 'Chinese New Year', 'estimated'],
+  ['2028-01-27', 'Chinese New Year (day 2)', 'estimated'], ['2028-02-27', 'Hari Raya Puasa', 'estimated'],
+  ['2028-04-14', 'Good Friday', 'fixed'], ['2028-05-01', 'Labour Day', 'fixed'],
+  ['2028-05-05', 'Hari Raya Haji', 'estimated'], ['2028-05-09', 'Vesak Day', 'estimated'],
+  ['2028-08-09', 'National Day', 'fixed'], ['2028-10-17', 'Deepavali', 'estimated'],
+  ['2028-12-25', 'Christmas Day', 'fixed'],
+
+  ['2029-01-01', "New Year's Day", 'fixed'], ['2029-02-13', 'Chinese New Year', 'estimated'],
+  ['2029-02-14', 'Chinese New Year (day 2)', 'estimated'], ['2029-02-15', 'Hari Raya Puasa', 'estimated'],
+  ['2029-03-30', 'Good Friday', 'fixed'], ['2029-04-24', 'Hari Raya Haji', 'estimated'],
+  ['2029-05-01', 'Labour Day', 'fixed'], ['2029-05-27', 'Vesak Day', 'estimated'],
+  ['2029-08-09', 'National Day', 'fixed'], ['2029-11-05', 'Deepavali', 'estimated'],
+  ['2029-12-25', 'Christmas Day', 'fixed'],
+
+  ['2030-01-01', "New Year's Day", 'fixed'], ['2030-02-03', 'Chinese New Year', 'estimated'],
+  ['2030-02-04', 'Chinese New Year (day 2)', 'estimated'], ['2030-02-05', 'Hari Raya Puasa', 'estimated'],
+  ['2030-04-14', 'Hari Raya Haji', 'estimated'], ['2030-04-19', 'Good Friday', 'fixed'],
+  ['2030-05-01', 'Labour Day', 'fixed'], ['2030-05-17', 'Vesak Day', 'estimated'],
+  ['2030-08-09', 'National Day', 'fixed'], ['2030-10-26', 'Deepavali', 'estimated'],
+  ['2030-12-25', 'Christmas Day', 'fixed'],
+
+  ['2031-01-01', "New Year's Day", 'fixed'], ['2031-01-23', 'Chinese New Year', 'estimated'],
+  ['2031-01-24', 'Chinese New Year (day 2)', 'estimated'], ['2031-01-25', 'Hari Raya Puasa', 'estimated'],
+  ['2031-04-03', 'Hari Raya Haji', 'estimated'], ['2031-04-11', 'Good Friday', 'fixed'],
+  ['2031-05-01', 'Labour Day', 'fixed'], ['2031-05-06', 'Vesak Day', 'estimated'],
+  ['2031-08-09', 'National Day', 'fixed'], ['2031-11-14', 'Deepavali', 'estimated'],
+  ['2031-12-25', 'Christmas Day', 'fixed'],
+];
+const STATUS_LABEL = { official: 'Confirmed', fixed: 'Fixed date', estimated: 'Estimated' };
+
+// ---------- Dates (UTC midnight, so time zones never shift a day) ----------
+const parse = s => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+const fmt = t => new Date(t).toISOString().slice(0, 10);
+const D = (t, o) => new Date(t).toLocaleDateString('en-SG', { timeZone: 'UTC', ...o });
+const nice = t => D(t, { day: 'numeric', month: 'short' });
+const niceY = t => D(t, { day: 'numeric', month: 'short', year: 'numeric' });
+const longDay = t => D(t, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const monthName = t => D(t, { month: 'short', year: 'numeric' });
+const monthLong = t => D(t, { month: 'long', year: 'numeric' });
+const weekday = t => D(t, { weekday: 'short' });
+const num = n => (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, '') || '0';
+const days = n => `${num(n)} day${Math.abs(n) === 1 ? '' : 's'}`;
+const todayUTC = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); };
+const optNum = v => v === '' || v == null ? null : Number(v);
+const isSaturday = t => new Date(t).getUTCDay() === 6;
+const isWeekend = t => [0, 6].includes(new Date(t).getUTCDay());
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = id => document.getElementById(id);
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+function addMonths(t, n) {
+  const d = new Date(t);
+  const y = d.getUTCFullYear(), m = d.getUTCMonth() + n, day = d.getUTCDate();
+  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return Date.UTC(y, m, Math.min(day, last));
+}
+
+// ---------- State ----------
+function defaults() {
+  const y = new Date().getFullYear();
+  return {
+    startDate: `${y - 1}-01-01`, annual: 14, carry: 0,
+    yearStart: `${y}-01-01`, yearEnd: `${y}-12-31`, years: 5,
+    bonusDays: 1, bonusEvery: 2, maxAnnual: '',
+    policyCarry: 14, approvedCarry: {},
+    lieuExpiry: '', holidayDates: {}, lieuOff: {}, customLieu: [],
+    entries: []
+  };
+}
+function normalize(s) {
+  const out = Object.assign(defaults(), s && typeof s === 'object' ? s : {});
+  for (const k of ['approvedCarry', 'holidayDates', 'lieuOff']) if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {};
+  for (const k of ['customLieu', 'entries']) if (!Array.isArray(out[k])) out[k] = [];
+  return out;
+}
+function loadLocal() { try { return normalize(JSON.parse(localStorage.getItem(KEY))); } catch { return defaults(); } }
+
+let state = loadLocal();
+const ui = { tab: 'overview', viewYear: null, balView: 'months', filter: 'upcoming', type: 'annual', amt: 1, pendingDupes: null };
+
+// ---------- Saving: everything stays on this device ----------
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); setStatus(true); }
+  catch { setStatus(false); }
+}
+function setStatus(ok) {
+  $('sync').dataset.s = ok ? 'cloud' : 'error';
+  $('sync').textContent = ok ? 'Saved on this device' : 'Could not save';
+}
+// Ask the browser not to clear this app's data when space runs low.
+function keepData() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
+}
+
+// ---------- Leave rules ----------
+const isLieu = e => e.type === 'lieu';
+const holidays = () => HOLIDAYS.map(([id, name, status]) => ({ id, name, status, date: state.holidayDates[id] || id }));
+
+// Working years repeat every 12 months from the first one.
+function workingYears() {
+  const ys = parse(state.yearStart), ye = parse(state.yearEnd) + DAY, out = [];
+  const n = Math.min(Math.max(Number(state.years) || 1, 1), 20);
+  for (let k = 0; k < n; k++) out.push({ s: addMonths(ys, 12 * k), e: addMonths(ye, 12 * k) - DAY });
+  return out;
+}
+
+// Monthly periods run from the working-year start date, e.g. 1 Apr–30 Apr or 16 Apr–15 May.
+function periods(ys, ye) {
+  const out = [];
+  for (let i = 0; i < 24; i++) {
+    const s = addMonths(ys, i);
+    if (s > ye) break;
+    out.push({ s, e: Math.min(addMonths(ys, i + 1) - DAY, ye) });
+  }
+  return out;
+}
+
+// First month that earns leave: the first full month on or after the start date.
+function accrualStart() {
+  if (!state.startDate) return null;
+  const start = parse(state.startDate), ys = parse(state.yearStart);
+  const a = new Date(start), b = new Date(ys);
+  let k = (a.getUTCFullYear() - b.getUTCFullYear()) * 12 + a.getUTCMonth() - b.getUTCMonth() - 1;
+  while (addMonths(ys, k) < start) k++;
+  return addMonths(ys, k);
+}
+
+// Full years of leave-earning service completed on date t.
+function serviceYears(t) {
+  const from = accrualStart();
+  if (from == null) return 0;
+  let n = 0;
+  while (addMonths(from, 12 * (n + 1)) <= t) n++;
+  return n;
+}
+
+// Yearly leave that applies to a month, including the service increase.
+function yearlyRate(monthStart) {
+  const base = Number(state.annual) || 0;
+  const every = Math.max(Number(state.bonusEvery) || 0, 0);
+  const rate = base + (every ? Math.floor(serviceYears(monthStart) / every) * (Number(state.bonusDays) || 0) : 0);
+  const max = optNum(state.maxAnnual);
+  return max != null ? Math.min(rate, max) : rate;
+}
+
+function nextIncrease(today) {
+  const from = accrualStart(), every = Number(state.bonusEvery) || 0;
+  if (from == null || !every || !(Number(state.bonusDays) > 0)) return null;
+  const n = Math.floor(serviceYears(today) / every) + 1;
+  const t = addMonths(from, 12 * every * n);
+  const rate = yearlyRate(t);
+  return rate > yearlyRate(today) ? { t, rate } : null;
+}
+
+// Leave in lieu history: credits, use (oldest first) and expiry, in date order.
+function lieuLedger(lastDay, today) {
+  const start = state.startDate ? parse(state.startDate) : Infinity;
+  const expiry = optNum(state.lieuExpiry);
+  const ev = [];
+  for (const h of holidays()) {
+    const t = parse(h.date);
+    if (isSaturday(t) && t >= start && !state.lieuOff[h.id])
+      ev.push({ t, kind: 'credit', amount: 1, note: h.name, sub: 'Public holiday on a Saturday', est: h.status === 'estimated' });
+  }
+  for (const c of state.customLieu) ev.push({ t: parse(c.date), kind: 'credit', amount: c.amount, note: c.note || 'Leave in lieu', sub: 'Added by you', id: c.id });
+  for (const e of state.entries) if (isLieu(e)) ev.push({ t: parse(e.date), kind: 'use', amount: e.amount, note: e.note || 'Leave in lieu taken', sub: 'Used', planned: parse(e.date) > today });
+  ev.sort((a, b) => a.t - b.t || (a.kind === 'credit' ? -1 : 1) - (b.kind === 'credit' ? -1 : 1));
+
+  const lots = [], out = [];
+  let bal = 0, debt = 0;
+  const expireUpTo = t => {
+    for (const lot of lots) if (lot.left > 0 && lot.exp != null && lot.exp <= t) {
+      bal -= lot.left;
+      out.push({ t: lot.exp, kind: 'expire', amount: lot.left, note: lot.note, sub: 'Expired unused', balance: bal });
+      lot.left = 0;
+    }
+  };
+  for (const e of ev) {
+    expireUpTo(e.t);
+    if (e.kind === 'credit') {
+      const repay = Math.min(debt, e.amount);
+      debt -= repay;
+      if (e.amount > repay) lots.push({ left: e.amount - repay, exp: expiry ? addMonths(e.t, expiry) : null, note: e.note });
+      bal += e.amount;
+    } else {
+      let need = e.amount;
+      for (const lot of lots) { const take = Math.min(lot.left, need); lot.left -= take; need -= take; if (!need) break; }
+      e.short = need;
+      debt += need;
+      bal -= e.amount;
+    }
+    out.push({ ...e, balance: bal });
+  }
+  expireUpTo(lastDay);
+  return out;
+}
+
+function calculate() {
+  const start = state.startDate ? parse(state.startDate) : Infinity;
+  const today = todayUTC();
+  const policy = Number(state.policyCarry) || 0;
+  const annualEntries = state.entries.filter(e => !isLieu(e));
+  const wy = workingYears();
+  const ledger = lieuLedger(wy[wy.length - 1].e, today);
+  const lieuIn = (s, e, kind) => ledger.filter(l => l.kind === kind && l.t >= s && l.t <= e).reduce((a, l) => a + l.amount, 0);
+  const lieuBalAt = t => { let b = 0; for (const l of ledger) { if (l.t > t) break; b = l.balance; } return b; };
+  let carryIn = Number(state.carry) || 0;
+
+  const years = wy.map(y => {
+    let totCredit = 0, totUsed = 0, prevRate = null;
+    const months = periods(y.s, y.e).map(p => {
+      const rate = yearlyRate(p.s);
+      // Only full months of service earn leave, credited at the end of the month.
+      const credit = start <= p.s ? rate / 12 : 0;
+      const rateUp = prevRate != null && rate > prevRate;
+      prevRate = rate;
+      let taken = 0, planned = 0;
+      for (const en of annualEntries) {
+        const t = parse(en.date);
+        if (t >= p.s && t <= p.e) t > today ? planned += en.amount : taken += en.amount;
+      }
+      const available = carryIn + totCredit - totUsed;
+      totCredit += credit;
+      totUsed += taken + planned;
+      return {
+        ...p, rate, rateUp, credit, taken, planned, used: taken + planned, totCredit, totUsed, available,
+        overdrawn: taken + planned > available + 1e-9,
+        balance: carryIn + totCredit - totUsed,
+        lieuEarned: lieuIn(p.s, p.e, 'credit'), lieuUsed: lieuIn(p.s, p.e, 'use'),
+        lieuExpired: lieuIn(p.s, p.e, 'expire'), lieuBal: lieuBalAt(p.e),
+        when: p.e < today ? 'past' : p.s > today ? 'future' : 'current'
+      };
+    });
+    // Whatever will be credited by year end (less than the yearly total if you started mid-year).
+    months.forEach(m => m.left = carryIn + totCredit - m.totUsed);
+    const end = carryIn + totCredit - totUsed;
+    const key = fmt(y.s);
+    const allowed = Math.max(Math.min(end, policy), 0);
+    const approved = optNum(state.approvedCarry[key]);
+    // A negative balance is carried as-is; otherwise carry what was approved, up to the limit.
+    const carryOut = end < 0 ? end : approved != null ? Math.min(approved, allowed) : allowed;
+    const row = {
+      ...y, key, months, carryIn, totCredit, end, allowed, approved, carryOut, lost: end - carryOut,
+      rates: [...new Set(months.map(m => m.rate))],
+      taken: months.reduce((a, m) => a + m.taken, 0),
+      planned: months.reduce((a, m) => a + m.planned, 0),
+      lieuEarned: lieuIn(y.s, y.e, 'credit'), lieuUsed: lieuIn(y.s, y.e, 'use'),
+      when: y.e < today ? 'past' : y.s > today ? 'future' : 'current'
+    };
+    carryIn = carryOut;
+    return row;
+  });
+
+  // Right now: only months that have ended have been credited.
+  const cur = years.find(y => y.when === 'current');
+  let annualNow = null;
+  if (cur) {
+    const credited = cur.months.filter(m => m.when === 'past').reduce((a, m) => a + m.credit, 0);
+    const taken = annualEntries.filter(e => { const t = parse(e.date); return t >= cur.s && t <= today; }).reduce((a, e) => a + e.amount, 0);
+    annualNow = cur.carryIn + credited - taken;
+  }
+  return { years, today, ledger, lieuBalAt, cur, annualNow, lieuNow: lieuBalAt(today) };
+}
+
+// Run the calculation as if `entries` were your leave (for previews).
+function calculateWith(entries) {
+  const saved = state;
+  state = { ...state, entries };
+  try { return calculate(); } finally { state = saved; }
+}
+
+const yearLabel = y => `${niceY(y.s)} – ${niceY(y.e)}`;
+const yearShort = y => {
+  const a = new Date(y.s).getUTCFullYear(), b = new Date(y.e).getUTCFullYear();
+  return a === b ? String(a) : `${a}/${String(b).slice(2)}`;
+};
+
+// ---------- Rendering ----------
+let calc;
+function render() {
+  calc = calculate();
+  const { years } = calc;
+  if (ui.viewYear == null || ui.viewYear >= years.length) {
+    const i = years.findIndex(y => y.when === 'current');
+    ui.viewYear = i >= 0 ? i : 0;
+  }
+  renderOverview();
+  renderLeave();
+  renderBalances();
+  renderLieu();
+  renderSetup();
+}
+
+function alertsHtml() {
+  const { years, ledger } = calc;
+  const out = [];
+  if (!state.startDate) out.push('Add the date you started work in Setup. No leave is credited until you do.');
+  const short = years.flatMap(y => y.months).filter(r => r.overdrawn);
+  if (short.length) out.push(`Not enough annual leave in ${short.map(r => `${monthName(r.s)} (using ${num(r.used)}, ${num(Math.max(r.available, 0))} available)`).join(', ')}. A month's credit only arrives at month end.`);
+  const lost = years.filter(y => y.lost > 0.001);
+  if (lost.length) out.push(`You'd lose ${lost.map(y => `${days(y.lost)} on ${niceY(y.e)}`).join(', ')} that can't be carried over. Plan leave before then, or check how much carry-over is approved.`);
+  const ls = ledger.filter(l => l.short > 0);
+  if (ls.length) out.push(`Not enough leave in lieu on ${ls.map(l => `${niceY(l.t)} (short ${num(l.short)})`).join(', ')}.`);
+  const ex = ledger.filter(l => l.kind === 'expire');
+  if (ex.length) out.push(`Leave in lieu would expire unused: ${ex.map(l => `${num(l.amount)} on ${niceY(l.t)}`).join(', ')}.`);
+  return out.map(a => `<div class="alert">${esc(a)}</div>`).join('');
+}
+
+function renderOverview() {
+  const { years, today, cur, annualNow, lieuNow } = calc;
+  const curY = cur || years[0];
+  const inc = nextIncrease(today);
+  const upcomingLieu = holidays().map(h => ({ ...h, t: parse(h.date) }))
+    .filter(h => isSaturday(h.t) && h.t > today && !state.lieuOff[h.id]).sort((a, b) => a.t - b.t);
+  const kpis = [
+    { cls: 'annual', k: 'Annual leave you can use now', v: annualNow == null ? '–' : num(annualNow), unit: 'days',
+      s: cur ? `Credited up to the end of last month, minus leave taken` : 'Today is outside your working years' },
+    { cls: 'lieu', k: 'Leave in lieu now', v: num(lieuNow), unit: 'days',
+      s: upcomingLieu[0] ? `Next: ${upcomingLieu[0].name}, ${niceY(upcomingLieu[0].t)}` : 'No more Saturday holidays listed' },
+    { k: `Annual leave at end of ${yearShort(curY)}`, v: num(curY.end), unit: 'days', neg: curY.end < 0,
+      s: curY.lost > 0.001 ? `${days(curY.lost)} over the carry-over limit` : `Including planned leave` },
+    { k: 'Leave per year', v: num(yearlyRate(today)), unit: 'days',
+      s: inc ? `${num(inc.rate)} days from ${monthName(inc.t)}` : `${serviceYears(today)} full years of service` },
+  ];
+  $('kpis').innerHTML = kpis.map(k => `
+    <div class="kpi ${k.cls || ''}">
+      <span class="k">${esc(k.k)}</span>
+      <span class="v ${k.neg ? 'neg' : ''}">${k.v}<small>${k.unit}</small></span>
+      <span class="s">${esc(k.s)}</span>
+    </div>`).join('');
+
+  const alerts = alertsHtml();
+  $('alerts').innerHTML = alerts || (state.entries.length ? '<div class="alert ok">All your planned leave fits within your balances.</div>' : '');
+
+  $('chartTitle').textContent = `Annual leave balance, ${yearShort(curY)}`;
+  $('chart').innerHTML = chartSvg(curY.months);
+
+  // Next planned leave and Saturday holidays, together in date order
+  const planned = state.entries.filter(e => parse(e.date) >= today).map(e => ({ t: parse(e.date), e }));
+  const items = [...planned, ...upcomingLieu.slice(0, 3).map(h => ({ t: h.t, h }))].sort((a, b) => a.t - b.t).slice(0, 8);
+  $('upcoming').innerHTML = items.length ? items.map(x => x.e ? entryItem(x.e, false) : `
+    <div class="item">
+      <div class="date-badge sat"><b>${D(x.t, { day: 'numeric' })}</b><span>${D(x.t, { month: 'short' })}</span></div>
+      <div class="item-main"><div class="t">${esc(x.h.name)}</div><div class="m">Saturday holiday · earns leave in lieu${x.h.status === 'estimated' ? ' · estimated date' : ''}</div></div>
+      <span class="item-amt" style="color:var(--lieu)">+1</span>
+    </div>`).join('')
+    : '<p class="empty">Nothing planned yet. Add leave to see how it affects your balance.</p>';
+}
+
+function niceStep(raw) {
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / p;
+  return Math.max(1, (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p);
+}
+function chartSvg(months) {
+  const W = 640, H = 220, L = 30, R = 6, T = 22, B = 24;
+  const vals = months.map(m => m.balance);
+  let max = Math.max(1, ...vals), min = Math.min(0, ...vals);
+  const step = niceStep((max - min) / 4);
+  max = Math.ceil(max / step) * step; min = Math.floor(min / step) * step;
+  const y = v => T + (max - v) / (max - min) * (H - T - B);
+  const bw = (W - L - R) / months.length;
+  let g = '<g class="grid">';
+  for (let v = min; v <= max + 1e-9; v += step) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${num(v)}</text>`;
+  g += '</g>';
+  let bars = '';
+  months.forEach((m, i) => {
+    const x = L + i * bw + bw * 0.18, w = bw * 0.64;
+    const top = y(Math.max(m.balance, 0)), bot = y(Math.min(m.balance, 0));
+    const cls = m.balance < 0 ? 'b-neg' : m.when === 'future' ? 'b-fut' : m.when === 'current' ? 'b-cur' : 'b-past';
+    bars += `<rect class="${cls}" x="${x}" y="${top}" width="${w}" height="${Math.max(bot - top, 1)}" rx="3"><title>${monthName(m.s)}: ${num(m.balance)} days at month end</title></rect>`;
+    bars += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${D(m.s, { month: 'short' }).slice(0, 3)}</text>`;
+    if (m.when === 'current' || i === months.length - 1)
+      bars += `<text class="val" x="${x + w / 2}" y="${m.balance < 0 ? bot + 13 : top - 6}" text-anchor="middle">${num(m.balance)}</text>`;
+    if (m.when === 'current')
+      bars += `<line class="now-line" x1="${x + w / 2}" x2="${x + w / 2}" y1="${T - 12}" y2="${top - 18}"/><text x="${x + w / 2}" y="${T - 14}" text-anchor="middle">now</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Annual leave balance at the end of each month">${g}<line class="zero" x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}"/>${bars}</svg>`;
+}
+
+function entryItem(e, removable = true) {
+  const t = parse(e.date), lieu = isLieu(e), future = t > calc.today;
+  const { years } = calc;
+  const out = t < years[0].s || t > years[years.length - 1].e;
+  return `
+    <div class="item">
+      <div class="date-badge ${lieu ? 'lieu' : ''}"><b>${D(t, { day: 'numeric' })}</b><span>${D(t, { month: 'short' })}</span></div>
+      <div class="item-main">
+        <div class="t">${esc(e.note || (lieu ? 'Leave in lieu' : 'Annual leave'))}</div>
+        <div class="m">${weekday(t)} · ${lieu ? '<span class="tag lieu">In lieu</span>' : '<span class="tag annual">Annual</span>'}${future ? ' <span class="tag planned">Planned</span>' : ''}${out ? ' <span class="tag bad">Outside your planning years</span>' : ''}</div>
+      </div>
+      <span class="item-amt">${e.amount === 0.5 ? '½ day' : '1 day'}</span>
+      ${removable ? `<button class="x" data-del="${e.id}" aria-label="Remove leave on ${niceY(t)}">✕</button>` : ''}
+    </div>`;
+}
+
+function renderLeave() {
+  const today = calc.today;
+  const list = [...state.entries]
+    .filter(e => ui.filter === 'all' || (ui.filter === 'upcoming' ? parse(e.date) > today : parse(e.date) <= today))
+    .sort((a, b) => ui.filter === 'past' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date));
+  let html = '', lastMonth = '';
+  for (const e of list) {
+    const m = monthLong(parse(e.date));
+    if (m !== lastMonth) {
+      const total = list.filter(x => monthLong(parse(x.date)) === m).reduce((a, x) => a + x.amount, 0);
+      html += `<div class="list-month">${m} · ${days(total)}</div>`;
+      lastMonth = m;
+    }
+    html += entryItem(e);
+  }
+  $('entryList').innerHTML = html || `<p class="empty">${ui.filter === 'upcoming' ? 'No planned leave yet. Add some to see the effect on your balance.' : ui.filter === 'past' ? 'No leave taken yet.' : 'No leave added yet.'}</p>`;
+  updatePreview();
+}
+
+function renderBalances() {
+  const { years } = calc;
+  $('yearPick').innerHTML = years.map((y, i) => `<button type="button" data-v="${i}" aria-pressed="${i === ui.viewYear}">${yearShort(y)}</button>`).join('');
+  $('yearPick').hidden = ui.balView !== 'months';
+  $('monthsCard').hidden = ui.balView !== 'months';
+  $('yearsCard').hidden = ui.balView !== 'years';
+  setPressed($('balView'), ui.balView);
+
+  const vy = years[ui.viewYear];
+  $('monthTitle').textContent = yearLabel(vy);
+  $('monthRows').innerHTML = vy.months.map(r => `
+    <tr class="${r.when}">
+      <td>${D(r.s, { month: 'short' })}${r.when === 'current' ? ' <span class="tag now">Now</span>' : ''}${r.rateUp ? `<span class="sub" style="color:var(--annual)">Now ${num(r.rate)} days/yr</span>` : ''}</td>
+      <td class="opt">${nice(r.s)} – ${nice(r.e)}</td>
+      <td class="${r.available < 0 ? 'neg' : ''}">${num(r.available)}</td>
+      <td class="${r.overdrawn ? 'neg' : ''}">${r.used ? num(r.used) : '–'}${r.planned ? `<span class="sub">${num(r.planned)} planned</span>` : ''}</td>
+      <td>${r.credit ? '+' + num(r.credit) : '–'}</td>
+      <td class="strong ${r.balance < 0 ? 'neg' : ''}">${num(r.balance)}</td>
+      <td class="opt ${r.left < 0 ? 'neg' : ''}">${num(r.left)}</td>
+      <td class="lieu ${r.lieuBal < 0 ? 'neg' : ''}">${num(r.lieuBal)}${r.lieuEarned ? `<span class="sub" style="color:var(--lieu)">+${num(r.lieuEarned)} earned</span>` : ''}${r.lieuUsed ? `<span class="sub">${num(r.lieuUsed)} used</span>` : ''}${r.lieuExpired ? `<span class="sub neg">${num(r.lieuExpired)} expired</span>` : ''}</td>
+    </tr>`).join('');
+
+  $('yearRows').innerHTML = years.map((y, i) => `
+    <tr data-year="${i}" class="${y.when === 'current' ? 'current' : y.when}">
+      <td>${yearShort(y)}${y.when === 'current' ? ' <span class="tag now">Now</span>' : ''}</td>
+      <td>${y.rates.map(num).join(' → ')}</td>
+      <td class="opt">${num(y.carryIn)}</td>
+      <td class="opt">${num(y.totCredit)}</td>
+      <td>${num(y.taken + y.planned)}${y.planned ? `<span class="sub">${num(y.planned)} planned</span>` : ''}</td>
+      <td class="strong ${y.end < 0 ? 'neg' : ''}">${num(y.end)}</td>
+      <td><input type="number" min="0" step="0.5" inputmode="decimal" data-carry="${y.key}" value="${y.approved ?? ''}" placeholder="${num(y.allowed)}" aria-label="Approved carry-over for ${yearShort(y)}"></td>
+      <td class="${y.lost > 0.001 ? 'neg' : ''}">${num(y.lost)}</td>
+      <td class="lieu opt">+${num(y.lieuEarned)} / −${num(y.lieuUsed)}</td>
+    </tr>`).join('');
+  $('policyEcho').textContent = num(Number(state.policyCarry) || 0);
+}
+
+function renderLieu() {
+  const { years, ledger, today } = calc;
+  const first = years[0].s, last = years[years.length - 1].e;
+  const start = state.startDate ? parse(state.startDate) : Infinity;
+  const hols = holidays().map(h => ({ ...h, t: parse(h.date) })).filter(h => h.t >= first && h.t <= last).sort((a, b) => a.t - b.t);
+  const sats = hols.filter(h => isSaturday(h.t));
+  $('satList').innerHTML = sats.length ? sats.map(h => {
+    const before = h.t < start;
+    return `
+    <div class="item">
+      <div class="date-badge sat"><b>${D(h.t, { day: 'numeric' })}</b><span>${D(h.t, { month: 'short' })}</span></div>
+      <div class="item-main">
+        <div class="t">${esc(h.name)}</div>
+        <div class="m">${D(h.t, { year: 'numeric' })} · <span class="tag ${h.status === 'estimated' ? 'est' : 'ok'}">${STATUS_LABEL[h.status]}</span>${h.t <= today ? ' · earned' : ''}</div>
+      </div>
+      ${before ? '<span class="small muted">Before you started</span>'
+        : `<label class="check"><input type="checkbox" data-lieu="${h.id}" ${state.lieuOff[h.id] ? '' : 'checked'}> +1</label>`}
+    </div>`;
+  }).join('') : '<p class="empty">No public holidays fall on a Saturday in your planning years.</p>';
+
+  $('allHolSummary').textContent = `All public holidays (${hols.length})`;
+  $('holidayRows').innerHTML = hols.map(h => `
+    <tr>
+      <td><input type="date" data-hol="${h.id}" value="${h.date}" aria-label="${esc(h.name)} date"></td>
+      <td style="${isSaturday(h.t) ? 'color:var(--lieu);font-weight:650' : ''}">${weekday(h.t)}</td>
+      <td style="text-align:left">${esc(h.name)}</td>
+      <td><span class="tag ${h.status === 'estimated' ? 'est' : 'ok'}">${STATUS_LABEL[h.status]}</span></td>
+    </tr>`).join('');
+
+  $('ledgerList').innerHTML = ledger.length ? [...ledger].reverse().map(l => `
+    <div class="item">
+      <div class="date-badge ${l.kind === 'credit' ? 'lieu' : ''}" style="${l.kind === 'expire' ? 'background:var(--bad-soft);color:var(--bad)' : l.kind === 'use' ? 'background:var(--sunk);color:var(--ink)' : ''}"><b>${D(l.t, { day: 'numeric' })}</b><span>${D(l.t, { month: 'short' })}</span></div>
+      <div class="item-main">
+        <div class="t">${esc(l.note)}</div>
+        <div class="m">${D(l.t, { year: 'numeric' })} · ${esc(l.sub)}${l.planned ? ' <span class="tag planned">Planned</span>' : ''}${l.est ? ' <span class="tag est">Estimated date</span>' : ''}${l.short ? ` <span class="tag bad">Short ${num(l.short)}</span>` : ''} · balance ${num(l.balance)}</div>
+      </div>
+      <span class="item-amt" style="color:${l.kind === 'credit' ? 'var(--lieu)' : 'var(--bad)'}">${l.kind === 'credit' ? '+' : '−'}${num(l.amount)}</span>
+      ${l.id ? `<button class="x" data-dellieu="${l.id}" aria-label="Remove">✕</button>` : ''}
+    </div>`).join('') : '<p class="empty">No leave in lieu yet.</p>';
+}
+
+function renderSetup() {
+  const from = accrualStart(), every = Number(state.bonusEvery) || 0;
+  $('bonusHint').textContent = from == null || !every ? 'Set your start date to see when the increase starts.'
+    : `You started earning leave in ${monthName(from)}, so each increase starts in ${D(from, { month: 'long' })}: the first in ${monthName(addMonths(from, 12 * every))}.`;
+}
+
+// ---------- Leave form ----------
+function draftDates() {
+  const from = $('eDate').value, to = $('eTo').value;
+  if (!from) return [];
+  if (!to || to <= from) return [from];
+  const out = [];
+  for (let t = parse(from); t <= parse(to) && out.length < 400; t += DAY) if (!isWeekend(t)) out.push(fmt(t));
+  return out;
+}
+function draftEntries() {
+  const note = $('eNote').value.trim();
+  return draftDates().map(d => ({ id: uid(), date: d, amount: ui.amt, type: ui.type, note }));
+}
+function updatePreview() {
+  const drafts = draftEntries();
+  const box = $('preview');
+  $('confirm').hidden = true;
+  ui.pendingDupes = null;
+  if (!drafts.length) { box.innerHTML = ''; return; }
+  const total = drafts.reduce((a, e) => a + e.amount, 0);
+  const lines = [];
+  const single = drafts.length === 1 ? parse(drafts[0].date) : null;
+  if (single != null && isWeekend(single)) lines.push(`<span class="bad">${longDay(single)} is a weekend.</span>`);
+  if ($('eTo').value && $('eTo').value > $('eDate').value) lines.push(`${drafts.length} weekday${drafts.length === 1 ? '' : 's'} · ${days(total)}. Public holidays in the range are counted too, so remove them after adding if needed.`);
+  else lines.push(`${days(total)} on ${longDay(parse(drafts[0].date))}.`);
+
+  const after = calculateWith([...state.entries, ...drafts]);
+  if (ui.type === 'annual') {
+    const yi = new Set(drafts.map(d => after.years.findIndex(y => parse(d.date) >= y.s && parse(d.date) <= y.e)));
+    for (const i of yi) {
+      if (i < 0) { lines.push('<span class="bad">Some dates are outside your planning years.</span>'); continue; }
+      const b = calc.years[i], a = after.years[i];
+      lines.push(`Year-end balance for ${yearShort(a)}: ${num(b.end)} → <b>${num(a.end)}</b>`);
+    }
+    const newShort = after.years.flatMap(y => y.months).filter(m => m.overdrawn)
+      .filter(m => !calc.years.flatMap(y => y.months).some(o => o.s === m.s && o.overdrawn));
+    if (newShort.length) lines.push(`<span class="bad">Not enough leave in ${newShort.map(m => `${monthName(m.s)} (${num(Math.max(m.available, 0))} available)`).join(', ')}.</span>`);
+  } else {
+    const newShort = after.ledger.filter(l => l.short > 0 && drafts.some(d => parse(d.date) === l.t));
+    const t = parse(drafts[0].date);
+    lines.push(`Leave in lieu available on ${niceY(t)}: <b>${num(calc.lieuBalAt(t - DAY))}</b>`);
+    if (newShort.length) lines.push(`<span class="bad">Not enough leave in lieu: short ${num(newShort.reduce((a, l) => a + l.short, 0))} day(s).</span>`);
+  }
+  box.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+}
+function addDrafts(drafts) {
+  state.entries.push(...drafts);
+  $('eDate').value = ''; $('eTo').value = ''; $('eNote').value = '';
+  $('confirm').hidden = true;
+  $('addMsg').textContent = `Added ${days(drafts.reduce((a, e) => a + e.amount, 0))}.`;
+  setTimeout(() => { $('addMsg').textContent = ''; }, 3000);
+  save(); render();
+}
+
+function setPressed(group, v) {
+  group.querySelectorAll('button[data-v]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === String(v))));
+}
+
+// ---------- Tabs ----------
+function tabButtons() {
+  const html = TABS.map(([id, label, icon]) => `
+    <button class="tab" type="button" data-tab="${id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg><span>${label}</span></button>`).join('');
+  $('topTabs').innerHTML = html;
+  $('bottomTabs').innerHTML = html;
+}
+function showTab(id, push = true) {
+  if (!TABS.some(t => t[0] === id)) id = 'overview';
+  ui.tab = id;
+  document.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== id; });
+  document.querySelectorAll('[data-tab]').forEach(b => b.toggleAttribute('aria-current', false));
+  document.querySelectorAll(`[data-tab="${id}"]`).forEach(b => b.setAttribute('aria-current', 'page'));
+  if (push) { try { history.replaceState(null, '', '#' + id); } catch {} }
+  try { localStorage.setItem(KEY + ':tab', id); } catch {}
+  window.scrollTo({ top: 0 });
+}
+
+// ---------- Settings fields ----------
+const FIELDS = ['startDate', 'annual', 'carry', 'yearStart', 'yearEnd', 'years', 'bonusDays', 'bonusEvery', 'maxAnnual', 'policyCarry', 'lieuExpiry'];
+const OPTIONAL = new Set(['maxAnnual', 'lieuExpiry']);
+function loadFields() {
+  FIELDS.forEach(f => { const el = $(f); if (document.activeElement !== el) el.value = state[f] ?? ''; });
+}
+
+// ---------- Events ----------
+function wire() {
+  document.addEventListener('click', ev => {
+    const tab = ev.target.closest('[data-tab]');
+    if (tab) return showTab(tab.dataset.tab);
+    const go = ev.target.closest('[data-go]');
+    if (go) return showTab(go.dataset.go);
+    const del = ev.target.closest('[data-del]');
+    if (del) {
+      state.entries = state.entries.filter(e => e.id !== del.dataset.del);
+      save(); render(); return;
+    }
+    const dl = ev.target.closest('[data-dellieu]');
+    if (dl) {
+      state.customLieu = state.customLieu.filter(c => c.id !== dl.dataset.dellieu);
+      save(); render();
+    }
+  });
+  window.addEventListener('hashchange', () => showTab(location.hash.slice(1), false));
+
+  // iPhone date pickers may only send "change", desktop browsers send "input" while typing: handle both.
+  const onField = ev => {
+    const f = ev.target.id, v = ev.target.value;
+    if (ev.target.type === 'date') {
+      // Ignore half-typed or cleared dates instead of treating them as "no start date".
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number(v.slice(0, 4)) < 1950) return;
+      if (state[f] === v) return;
+      state[f] = v;
+    } else {
+      state[f] = OPTIONAL.has(f) ? (v === '' ? '' : Number(v)) : (v === '' ? 0 : Number(v));
+    }
+    // Changing the start of the working year moves the end to one year later.
+    if (f === 'yearStart') { state.yearEnd = fmt(addMonths(parse(v), 12) - DAY); $('yearEnd').value = state.yearEnd; }
+    if (state.yearEnd < state.yearStart) return;
+    save(); render();
+  };
+  FIELDS.forEach(f => { $(f).addEventListener('input', onField); $(f).addEventListener('change', onField); });
+  // Put a cleared date back to the saved value when you leave the field.
+  ['startDate', 'yearStart', 'yearEnd'].forEach(f => $(f).addEventListener('blur', () => { if (!$(f).value) $(f).value = state[f] || ''; }));
+
+  // Leave form
+  $('eType').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-v]'); if (!b) return;
+    ui.type = b.dataset.v; setPressed($('eType'), ui.type);
+    $('addBtn').classList.toggle('lieu', ui.type === 'lieu');
+    $('addBtn').textContent = ui.type === 'lieu' ? 'Add leave in lieu' : 'Add leave';
+    updatePreview();
+  });
+  $('eAmt').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-v]'); if (!b) return;
+    ui.amt = Number(b.dataset.v); setPressed($('eAmt'), b.dataset.v); updatePreview();
+  });
+  ['eDate', 'eTo', 'eNote'].forEach(id => $(id).addEventListener('input', updatePreview));
+  $('leaveForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const drafts = draftEntries();
+    if (!drafts.length) { $('addMsg').textContent = 'Pick a date first.'; return; }
+    const existing = new Set(state.entries.map(e => e.date));
+    const dupes = drafts.filter(d => existing.has(d.date));
+    if (dupes.length) {
+      ui.pendingDupes = drafts;
+      $('confirm').hidden = false;
+      $('confirm').innerHTML = `<span>You already have leave on ${dupes.map(d => nice(parse(d.date))).join(', ')}.</span>
+        <div class="btn-row"><button class="btn small" type="button" id="dupeYes">Add anyway</button><button class="btn small" type="button" id="dupeSkip">Skip those days</button></div>`;
+      $('dupeYes').onclick = () => addDrafts(ui.pendingDupes);
+      $('dupeSkip').onclick = () => { const keep = ui.pendingDupes.filter(d => !existing.has(d.date)); keep.length ? addDrafts(keep) : ($('confirm').hidden = true); };
+      return;
+    }
+    addDrafts(drafts);
+  });
+  $('leaveFilter').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-v]'); if (!b) return;
+    ui.filter = b.dataset.v; setPressed($('leaveFilter'), ui.filter); renderLeave();
+  });
+
+  // Balances
+  $('balView').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-v]'); if (!b) return;
+    ui.balView = b.dataset.v; renderBalances();
+  });
+  $('yearPick').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-v]'); if (!b) return;
+    ui.viewYear = Number(b.dataset.v); renderBalances();
+  });
+  $('yearRows').addEventListener('click', ev => {
+    if (ev.target.tagName === 'INPUT') return;
+    const tr = ev.target.closest('tr[data-year]'); if (!tr) return;
+    ui.viewYear = Number(tr.dataset.year); ui.balView = 'months'; renderBalances();
+  });
+  $('yearRows').addEventListener('change', ev => {
+    const key = ev.target.dataset.carry; if (!key) return;
+    if (ev.target.value === '') delete state.approvedCarry[key];
+    else state.approvedCarry[key] = Number(ev.target.value);
+    save(); render();
+  });
+
+  // Leave in lieu
+  $('p-lieu').addEventListener('change', ev => {
+    const { hol, lieu } = ev.target.dataset;
+    if (hol) {
+      if (!ev.target.value || ev.target.value === hol) delete state.holidayDates[hol];
+      else state.holidayDates[hol] = ev.target.value;
+    } else if (lieu) {
+      if (ev.target.checked) delete state.lieuOff[lieu];
+      else state.lieuOff[lieu] = true;
+    } else return;
+    save(); render();
+  });
+  $('lieuForm').addEventListener('submit', ev => {
+    ev.preventDefault();
+    if (!$('lDate').value) return;
+    state.customLieu.push({ id: uid(), date: $('lDate').value, amount: Number($('lAmt').value), note: $('lNote').value.trim() });
+    $('lDate').value = ''; $('lNote').value = '';
+    save(); render();
+  });
+
+  // Data
+  $('exportBtn').addEventListener('click', async () => {
+    const data = JSON.stringify(state, null, 2), filename = `leave-backup-${fmt(todayUTC())}.json`;
+    // On a phone, open the share sheet so you can save it to Files, iCloud Drive or send it to yourself.
+    try {
+      const file = new File([data], filename, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'Leave Calculator backup' });
+        $('dataMsg').textContent = 'Backup ready.';
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    $('dataMsg').textContent = 'Backup downloaded.';
+  });
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', async ev => {
+    const file = ev.target.files[0]; if (!file) return;
+    try {
+      state = normalize(JSON.parse(await file.text()));
+      save(); loadFields(); render();
+      $('dataMsg').textContent = `Imported ${state.entries.length} leave entries.`;
+    } catch { $('dataMsg').textContent = 'That file is not a Leave Calculator backup.'; }
+    ev.target.value = '';
+  });
+  $('resetBtn').addEventListener('click', () => { $('resetConfirm').hidden = false; });
+  $('resetNo').addEventListener('click', () => { $('resetConfirm').hidden = true; });
+  $('resetYes').addEventListener('click', () => {
+    state = defaults(); save(); loadFields(); render();
+    $('resetConfirm').hidden = true; $('dataMsg').textContent = 'All data cleared.';
+  });
+}
+
+// ---------- Start ----------
+tabButtons();
+wire();
+loadFields();
+render();
+setStatus(true);
+keepData();
+let startTab = location.hash.slice(1);
+if (!startTab) { try { startTab = localStorage.getItem(KEY + ':tab') || ''; } catch {} }
+showTab(startTab || 'overview', false);
+// Offline support once the app is opened from a web address (not needed when opened as a file).
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
