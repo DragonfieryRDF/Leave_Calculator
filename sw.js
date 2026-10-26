@@ -1,6 +1,6 @@
 // Keeps the app working offline: serve from the cache, refresh the cache in the background.
 // Bump CACHE whenever you upload a new version.
-const CACHE = 'leave-calculator-v4';
+const CACHE = 'leave-calculator-v6';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

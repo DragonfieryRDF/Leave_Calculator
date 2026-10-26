@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Leave Calculator</title>
 <meta name="description" content="Plan annual leave and leave in lieu years ahead.">
-<meta name="theme-color" content="#0d7a6f">
+<meta name="theme-color" content="#f2f4f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0f0e" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Leave">
@@ -13,276 +14,337 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
 <style>
-  /* Layout: app shell — sticky header with tabs on desktop, bottom tab bar on phones; one panel per tab. */
+  /* Layout: iOS-style app shell — frosted header and tab bar, inset grouped lists for forms, cards for data. */
   :root {
-    --bg: #f3f6f5;
+    --bg: #f2f4f3;
     --surface: #ffffff;
-    --sunk: #eaefee;
-    --ink: #142120;
-    --muted: #5b6b69;
-    --line: #dce4e2;
-    --annual: #0d7a6f;
-    --annual-soft: #ddf1ed;
-    --lieu: #6c45c4;
-    --lieu-soft: #eee8fb;
+    --sunk: #eceff0;
+    --ink: #0f1716;
+    --muted: #6b7674;
+    --faint: #9aa4a2;
+    --line: rgba(15, 30, 28, .11);
+    --bar: rgba(242, 244, 243, .78);
+    --annual: #0e7a6e;
+    --annual-soft: #e1f3ef;
+    --annual-ink: #ffffff;
+    --lieu: #6d47cf;
+    --lieu-soft: #efeafd;
     --planned: #9a5b00;
-    --planned-soft: #fcf0d9;
-    --bad: #c2332a;
-    --bad-soft: #fbe6e4;
-    --on-accent: #ffffff;
-    --font-display: -apple-system, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
-    --font-body: -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, sans-serif;
-    --radius: 14px;
-    --nav-h: 64px;
+    --planned-soft: #fdf1da;
+    --bad: #d1352b;
+    --bad-soft: #fde9e7;
+    --shadow: 0 1px 2px rgba(15, 30, 28, .05), 0 6px 24px rgba(15, 30, 28, .06);
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, Roboto, sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --r-card: 20px;
+    --r-ctl: 10px;
+    --nav-h: 58px;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0e1514; --surface: #162020; --sunk: #1c2827; --ink: #e4eeec; --muted: #93a4a1; --line: #263432;
-      --annual: #4fc4b4; --annual-soft: #143330; --lieu: #ad8eff; --lieu-soft: #261e3d;
-      --planned: #e8aa4c; --planned-soft: #33270f; --bad: #ff7d72; --bad-soft: #3b1d1a; --on-accent: #0b1514;
+      --bg: #0b0f0e; --surface: #161c1b; --sunk: #232b29; --ink: #eef3f2; --muted: #9aa7a5; --faint: #6c7876;
+      --line: rgba(255, 255, 255, .09); --bar: rgba(11, 15, 14, .75);
+      --annual: #3fcab7; --annual-soft: #12302c; --annual-ink: #04201c;
+      --lieu: #b59cff; --lieu-soft: #241d3d; --planned: #f0b24f; --planned-soft: #33280f;
+      --bad: #ff7b70; --bad-soft: #3a1c19; --shadow: none;
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0e1514; --surface: #162020; --sunk: #1c2827; --ink: #e4eeec; --muted: #93a4a1; --line: #263432;
-    --annual: #4fc4b4; --annual-soft: #143330; --lieu: #ad8eff; --lieu-soft: #261e3d;
-    --planned: #e8aa4c; --planned-soft: #33270f; --bad: #ff7d72; --bad-soft: #3b1d1a; --on-accent: #0b1514;
+    --bg: #0b0f0e; --surface: #161c1b; --sunk: #232b29; --ink: #eef3f2; --muted: #9aa7a5; --faint: #6c7876;
+    --line: rgba(255, 255, 255, .09); --bar: rgba(11, 15, 14, .75);
+    --annual: #3fcab7; --annual-soft: #12302c; --annual-ink: #04201c;
+    --lieu: #b59cff; --lieu-soft: #241d3d; --planned: #f0b24f; --planned-soft: #33280f;
+    --bad: #ff7b70; --bad-soft: #3a1c19; --shadow: none;
     color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
-  /* Tabs you're not on are hidden with the hidden attribute; this must beat .panel's display: grid. */
   [hidden] { display: none !important; }
-  html { color-scheme: light; }
-  img { max-width: 100%; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
-    margin: 0;
-    background: var(--bg); color: var(--ink);
-    font: 15px/1.5 var(--font-body);
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 var(--font); letter-spacing: -0.005em;
     -webkit-tap-highlight-color: transparent;
-    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
   }
-  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); }
-  h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
-  h2 { font-size: 18px; font-weight: 650; }
-  h3 { font-size: 15px; font-weight: 600; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bar); }
+  h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
   button, input, select { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--annual); outline-offset: 2px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
 
-  /* Header */
+  /* ---------- Header ---------- */
   .top {
     position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
-    background: var(--surface); border-bottom: 1px solid var(--line);
+    background: var(--bar);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: .5px solid var(--line);
   }
   .top-inner {
     max-width: 1080px; margin: 0 auto;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
-    padding-block: 12px;
+    padding-block: 10px;
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   }
-  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
-  .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--annual); color: var(--on-accent); display: grid; place-items: center; }
-  .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
-  .sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
-  .sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
-  .sync[data-s="cloud"]::before { background: var(--annual); }
-  .sync[data-s="saving"]::before { background: var(--planned); }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+  .brand-mark { width: 32px; height: 32px; flex: none; border-radius: 9px; background: var(--annual); color: var(--annual-ink); display: grid; place-items: center; }
+  .brand h1 { font-size: 17px; font-weight: 650; white-space: nowrap; }
+  .sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--annual); }
   .sync[data-s="error"]::before { background: var(--bad); }
 
-  /* Setup: changes wait for Apply */
-  .apply-bar {
-    position: sticky; bottom: 12px; z-index: 5;
-    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
-    padding: 10px 12px 10px 16px; box-shadow: 0 6px 20px rgb(0 0 0 / .12);
-    font-size: 14px; color: var(--muted);
-  }
-  .apply-bar.dirty { border-color: var(--annual); color: var(--ink); }
-  .apply-bar.dirty #applyMsg { font-weight: 600; }
-  .apply-bar.error { border-color: var(--bad); }
-  .apply-bar.error #applyMsg { color: var(--bad); font-weight: 600; }
-  .apply-bar .btn:disabled { opacity: .45; cursor: default; }
-  .field input.invalid { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
-  .tab.dirty span { position: relative; }
-  .tab.dirty span::after { content: ""; position: absolute; top: -2px; right: -8px; width: 7px; height: 7px; border-radius: 50%; background: var(--planned); }
-  @media (max-width: 760px) { .apply-bar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 10px); } }
-
-  .tabs { display: flex; gap: 4px; }
+  .tabs { display: flex; gap: 2px; }
   .tab {
-    border: 0; background: none; cursor: pointer; border-radius: 10px;
-    padding: 8px 12px; color: var(--muted); font-weight: 600; font-size: 14px;
-    display: inline-flex; align-items: center; gap: 7px; min-height: 40px;
+    border: 0; background: none; cursor: pointer; border-radius: 999px;
+    padding: 7px 14px; color: var(--muted); font-weight: 600; font-size: 14px;
+    display: inline-flex; align-items: center; gap: 7px; min-height: 36px;
   }
   .tab svg { width: 18px; height: 18px; flex: none; }
-  .tab:hover { color: var(--ink); background: var(--sunk); }
-  .tab[aria-current="page"] { color: var(--annual); background: var(--annual-soft); }
-  .top .tabs { width: 100%; }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-current="page"] { color: var(--ink); background: var(--surface); box-shadow: var(--shadow); }
+  .top .tabs { width: 100%; background: var(--sunk); border-radius: 999px; padding: 3px; width: fit-content; }
+  .tab.dirty span { position: relative; }
+  .tab.dirty span::after { content: ""; position: absolute; top: -1px; right: -8px; width: 7px; height: 7px; border-radius: 50%; background: var(--planned); }
 
+  /* Bottom tab bar on phones */
   @media (max-width: 760px) {
     .top .tabs { display: none; }
     .bottom-nav {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
-      background: var(--surface); border-top: 1px solid var(--line);
+      background: var(--bar);
+      -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+      border-top: .5px solid var(--line);
       padding-bottom: env(safe-area-inset-bottom, 0px);
-      padding-left: max(8px, env(safe-area-inset-left, 0px));
-      padding-right: max(8px, env(safe-area-inset-right, 0px));
+      padding-left: max(4px, env(safe-area-inset-left, 0px));
+      padding-right: max(4px, env(safe-area-inset-right, 0px));
     }
     .bottom-nav .tabs { justify-content: space-around; }
-    .bottom-nav .tab { flex-direction: column; gap: 2px; font-size: 11px; padding: 8px 4px; min-height: var(--nav-h); flex: 1; border-radius: 0; background: none; }
-    .bottom-nav .tab svg { width: 22px; height: 22px; }
-    .bottom-nav .tab[aria-current="page"] { background: none; }
-    main { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 24px) !important; }
+    .bottom-nav .tab {
+      flex: 1; flex-direction: column; gap: 3px; min-height: var(--nav-h);
+      font-size: 10.5px; font-weight: 600; padding: 7px 2px 5px; border-radius: 0; background: none; box-shadow: none;
+    }
+    .bottom-nav .tab svg { width: 25px; height: 25px; }
+    .bottom-nav .tab[aria-current="page"] { color: var(--annual); background: none; box-shadow: none; }
+    main { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 28px) !important; }
   }
   @media (min-width: 761px) { .bottom-nav { display: none; } }
 
-  /* Page */
+  /* ---------- Page ---------- */
   main {
     max-width: 1080px; margin: 0 auto;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
-    padding-block: 20px 48px;
+    padding-block: 8px 48px;
   }
-  .panel { display: grid; gap: 16px; }
-  .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .panel-head p { margin: 0; color: var(--muted); font-size: 14px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
-  .card > h3 + * { margin-top: 12px; }
-  .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
-  .cols-3 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+  .panel { display: grid; gap: 18px; }
+  .page-title { font-size: 32px; font-weight: 700; letter-spacing: -0.025em; padding-top: 10px; }
+  .page-sub { margin: -12px 0 0; color: var(--muted); font-size: 15px; }
+  .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+  .cols-3 { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: start; }
   @media (max-width: 860px) { .cols, .cols-3 { grid-template-columns: minmax(0, 1fr); } }
-  .muted { color: var(--muted); }
-  .small { font-size: 13px; }
-  .hint { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  .stack { display: grid; gap: 10px; min-width: 0; align-content: start; }
+  .card { background: var(--surface); border-radius: var(--r-card); padding: 18px; min-width: 0; box-shadow: var(--shadow); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .card-head h3 { font-size: 17px; font-weight: 650; }
+  .hint { font-size: 13px; color: var(--muted); margin: 10px 0 0; line-height: 1.45; }
   .hint b { color: var(--ink); font-weight: 600; }
 
-  /* Key numbers */
+  /* ---------- Key numbers ---------- */
   .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-  @media (max-width: 860px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
-  .kpi .k { font-size: 13px; color: var(--muted); font-weight: 500; }
-  .kpi .v { font-family: var(--font-display); font-size: 34px; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
-  .kpi .v small { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
-  .kpi .s { font-size: 12.5px; color: var(--muted); }
-  .kpi.annual { background: var(--annual); border-color: var(--annual); color: var(--on-accent); }
+  @media (max-width: 860px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+  .kpi { background: var(--surface); border-radius: var(--r-card); padding: 14px 16px 16px; display: grid; gap: 2px; align-content: start; box-shadow: var(--shadow); min-width: 0; }
+  .kpi .k { font-size: 13px; color: var(--muted); font-weight: 600; line-height: 1.3; }
+  .kpi .v { font-family: var(--font-display); font-size: 38px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; margin-top: 4px; }
+  .kpi .v small { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
+  .kpi .s { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+  .kpi.annual { background: linear-gradient(160deg, var(--annual), color-mix(in srgb, var(--annual) 78%, #000)); color: var(--annual-ink); }
   .kpi.annual .k, .kpi.annual .s, .kpi.annual .v small { color: inherit; opacity: .85; }
   .kpi.lieu .v { color: var(--lieu); }
   .kpi .v.neg { color: var(--bad); }
 
-  /* Alerts */
+  /* ---------- Alerts ---------- */
   .alerts { display: grid; gap: 8px; }
-  .alert { background: var(--bad-soft); color: var(--bad); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .alerts:empty { display: none; }
+  .alert { background: var(--bad-soft); color: var(--bad); border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.4; }
   .alert.ok { background: var(--annual-soft); color: var(--annual); }
 
-  /* Chips & tags */
-  .tag { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; vertical-align: 1px; white-space: nowrap; }
+  /* ---------- Tags ---------- */
+  .tag { display: inline-block; font-size: 11.5px; font-weight: 650; padding: 2px 8px; border-radius: 999px; vertical-align: 1px; white-space: nowrap; }
   .tag.planned, .tag.est { background: var(--planned-soft); color: var(--planned); }
   .tag.lieu { background: var(--lieu-soft); color: var(--lieu); }
   .tag.annual, .tag.ok { background: var(--annual-soft); color: var(--annual); }
   .tag.bad { background: var(--bad-soft); color: var(--bad); }
   .tag.now { background: var(--ink); color: var(--surface); }
 
-  /* Segmented control */
-  .seg { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; gap: 2px; flex-wrap: wrap; }
-  .seg button { border: 0; background: none; border-radius: 8px; padding: 7px 12px; min-height: 36px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
-  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+  /* ---------- Segmented controls ---------- */
+  .seg { display: inline-flex; background: var(--sunk); border-radius: 11px; padding: 3px; gap: 2px; max-width: 100%; }
+  .seg button {
+    flex: 1; border: 0; background: none; border-radius: 9px; padding: 6px 14px; min-height: 34px;
+    font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; white-space: nowrap;
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+  .seg.full { display: flex; width: 100%; }
   .seg.type button[data-v="annual"][aria-pressed="true"] { color: var(--annual); }
   .seg.type button[data-v="lieu"][aria-pressed="true"] { color: var(--lieu); }
-
-  /* Forms */
-  .form { display: grid; gap: 12px; }
-  .field { display: grid; gap: 5px; min-width: 0; }
-  .field > span { font-size: 13px; color: var(--muted); font-weight: 500; }
-  .field input, .field select {
-    width: 100%; min-height: 44px; font-size: 16px;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+  .chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 2px; margin: -2px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips button {
+    flex: none; border: 0; border-radius: 999px; padding: 7px 14px; min-height: 36px; cursor: pointer;
+    background: var(--surface); color: var(--muted); font-weight: 650; font-size: 14px; box-shadow: var(--shadow);
   }
-  .field input:focus, .field select:focus { border-color: var(--annual); outline: none; box-shadow: 0 0 0 3px var(--annual-soft); }
-  .row2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  @media (max-width: 420px) { .row2.stack { grid-template-columns: minmax(0, 1fr); } }
+  .chips button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+
+  /* ---------- Inset grouped lists (forms) ---------- */
+  .group-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 0 16px; margin: 4px 0 -2px; }
+  .group { background: var(--surface); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  .group-note { font-size: 13px; color: var(--muted); padding: 0 16px; margin: -2px 0 6px; line-height: 1.45; }
+  .group-note b { color: var(--ink); font-weight: 600; }
+  .row-f {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    min-height: 50px; padding: 7px 16px; position: relative; cursor: text;
+  }
+  .row-f + .row-f::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--line); }
+  .row-f > span { flex: 1 1 auto; min-width: 0; font-size: 16px; line-height: 1.3; }
+  .row-f > span em { display: block; font-style: normal; font-size: 12.5px; color: var(--muted); }
+  .row-f input, .row-f select {
+    -webkit-appearance: none; appearance: none;
+    flex: 0 1 auto; min-width: 0; max-width: 62%;
+    border: 0; border-radius: 8px; background: var(--sunk); color: var(--ink);
+    font-size: 16px; line-height: 1.25; padding: 7px 10px; min-height: 36px; text-align: right;
+  }
+  .row-f input[type="number"] { width: 5.5em; }
+  .row-f input[type="date"], .row-f input[type="month"] { width: 9.6em; }
+  .row-f input[type="text"] { flex: 1 1 auto; max-width: 70%; background: transparent; padding-inline: 0; }
+  .row-f input::placeholder { color: var(--faint); }
+  .row-f input::-webkit-date-and-time-value { text-align: right; margin: 0; }
+  .row-f input::-webkit-calendar-picker-indicator { margin-left: 4px; opacity: .55; }
+  .row-f select { padding-right: 26px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: right 13px center, right 8px center; background-size: 5px 5px; background-repeat: no-repeat; }
+  .row-f input:focus, .row-f select:focus { outline: 2px solid var(--annual); outline-offset: 0; }
+  .row-f input.invalid { outline: 2px solid var(--bad); background: var(--bad-soft); }
+  .row-f .seg { flex: none; }
+  .row-f.check-row { cursor: default; }
+
+  .action { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 0 16px; border: 0; background: none; color: var(--annual); font-weight: 600; font-size: 16px; text-align: left; cursor: pointer; position: relative; }
+  .action + .action::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; border-top: .5px solid var(--line); }
+  .action:active { background: var(--sunk); }
+  .action.danger { color: var(--bad); }
+  .action svg { width: 20px; height: 20px; flex: none; }
+
+  /* ---------- Buttons ---------- */
   .btn {
-    border: 1px solid var(--line); background: var(--surface); border-radius: 10px;
-    padding: 9px 16px; min-height: 44px; font-weight: 600; cursor: pointer; font-size: 15px;
+    border: 0; background: var(--sunk); color: var(--ink); border-radius: 12px;
+    padding: 10px 18px; min-height: 44px; font-weight: 650; cursor: pointer; font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   }
-  .btn:hover { background: var(--sunk); }
-  .btn.primary { background: var(--annual); border-color: var(--annual); color: var(--on-accent); }
-  .btn.primary.lieu { background: var(--lieu); border-color: var(--lieu); }
+  .btn:active { transform: scale(.98); }
+  .btn.primary { background: var(--annual); color: var(--annual-ink); }
+  .btn.primary.lieu { background: var(--lieu); color: #fff; }
+  .btn.block { width: 100%; min-height: 50px; border-radius: 14px; font-size: 16px; }
+  .btn.small { min-height: 36px; padding: 6px 14px; font-size: 14px; border-radius: 10px; }
   .btn.danger { color: var(--bad); }
-  .btn.small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+  .btn:disabled { opacity: .4; cursor: default; transform: none; }
   .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .x { border: 0; background: none; color: var(--muted); cursor: pointer; width: 36px; height: 36px; border-radius: 8px; font-size: 16px; }
-  .x:hover { background: var(--bad-soft); color: var(--bad); }
+  .x { border: 0; background: none; color: var(--faint); cursor: pointer; width: 36px; height: 36px; border-radius: 10px; font-size: 15px; flex: none; }
+  .x:hover, .x:active { background: var(--bad-soft); color: var(--bad); }
 
-  .preview { border-radius: 10px; padding: 10px 12px; background: var(--sunk); font-size: 14px; display: grid; gap: 4px; }
+  .preview { border-radius: 14px; padding: 12px 14px; background: var(--surface); font-size: 14px; display: grid; gap: 4px; box-shadow: var(--shadow); }
   .preview .bad { color: var(--bad); font-weight: 600; }
   .preview:empty { display: none; }
-  .confirm { border-radius: 10px; padding: 10px 12px; background: var(--planned-soft); color: var(--planned); font-size: 14px; display: grid; gap: 8px; }
+  .confirm { border-radius: 14px; padding: 12px 14px; background: var(--planned-soft); color: var(--planned); font-size: 14px; display: grid; gap: 10px; }
+  #addMsg:empty { display: none; }
 
-  /* Lists */
+  /* ---------- Lists ---------- */
   .list { display: grid; }
-  .list-month { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 14px 0 6px; border-bottom: 1px solid var(--line); }
-  .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); min-height: 52px; }
-  .item:last-child { border-bottom: 0; }
-  .date-badge { width: 46px; flex: none; text-align: center; border-radius: 10px; background: var(--annual-soft); color: var(--annual); padding: 4px 0; line-height: 1.15; }
-  .date-badge.lieu { background: var(--lieu-soft); color: var(--lieu); }
-  .date-badge.sat { background: var(--lieu-soft); color: var(--lieu); }
-  .date-badge b { display: block; font-family: var(--font-display); font-size: 18px; }
-  .date-badge span { font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .list-month { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding: 16px 0 6px; }
+  .list-month:first-child { padding-top: 4px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; min-height: 56px; position: relative; }
+  .item + .item::before { content: ""; position: absolute; top: 0; left: 58px; right: 0; border-top: .5px solid var(--line); }
+  .date-badge { width: 46px; flex: none; text-align: center; border-radius: 12px; background: var(--annual-soft); color: var(--annual); padding: 5px 0; line-height: 1.1; }
+  .date-badge.lieu, .date-badge.sat { background: var(--lieu-soft); color: var(--lieu); }
+  .date-badge b { display: block; font-family: var(--font-display); font-size: 19px; font-weight: 700; }
+  .date-badge span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
   .item-main { flex: 1; min-width: 0; }
-  .item-main .t { font-weight: 600; overflow-wrap: anywhere; }
-  .item-main .m { font-size: 13px; color: var(--muted); }
-  .item-amt { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-  .empty { color: var(--muted); padding: 14px 0; font-size: 14px; }
+  .item-main .t { font-weight: 600; overflow-wrap: anywhere; line-height: 1.3; }
+  .item-main .m { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+  .item-amt { font-variant-numeric: tabular-nums; font-weight: 650; white-space: nowrap; font-size: 15px; }
+  .empty { color: var(--muted); padding: 14px 0 6px; font-size: 14px; margin: 0; }
 
-  /* Tables */
-  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
-  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 14px; }
-  th, td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
-  @media (max-width: 420px) { th, td { padding-inline: 5px; } table { font-size: 13.5px; } }
+  /* ---------- Tables ---------- */
+  .tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 15px; }
+  th, td { padding: 10px 8px; text-align: right; white-space: nowrap; border-bottom: .5px solid var(--line); }
+  tbody tr:last-child td { border-bottom: 0; }
   th:first-child, td:first-child { text-align: left; padding-left: 0; }
   th:last-child, td:last-child { padding-right: 0; }
-  th { font-size: 12px; color: var(--muted); font-weight: 600; }
+  th { font-size: 11.5px; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: .03em; }
   th.lieu, td.lieu { color: var(--lieu); }
   tr.current td { background: var(--annual-soft); }
-  tr.current td:first-child { box-shadow: inset 3px 0 0 var(--annual); padding-left: 8px; }
+  tr.current td:first-child { border-radius: 10px 0 0 10px; padding-left: 10px; }
+  tr.current td:last-child { border-radius: 0 10px 10px 0; padding-right: 10px; }
   tr.future td { color: var(--muted); }
-  tr.future td.strong, tr.future td.lieu { color: var(--ink); }
+  tr.future td.strong { color: var(--ink); }
   tr.future td.lieu { color: var(--lieu); }
-  td.strong { font-weight: 650; }
-  td.neg, td .neg { color: var(--bad) !important; font-weight: 650; }
-  td .sub { display: block; font-size: 11.5px; color: var(--muted); font-weight: 500; }
-  td input { width: 76px; min-height: 36px; font-size: 16px; text-align: right; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
-  td input[type="date"] { width: auto; text-align: left; }
+  td.strong { font-weight: 700; }
+  td.neg, td .neg { color: var(--bad) !important; font-weight: 700; }
+  td .sub { display: block; font-size: 11.5px; color: var(--muted); font-weight: 500; line-height: 1.3; }
+  td input { -webkit-appearance: none; appearance: none; width: 64px; min-height: 34px; font-size: 16px; text-align: right; background: var(--sunk); border: 0; border-radius: 8px; padding: 4px 8px; }
+  td input[type="date"] { width: 9.4em; text-align: left; }
+  td input::-webkit-date-and-time-value { text-align: left; margin: 0; }
   #yearRows tr { cursor: pointer; }
-  #yearRows tr:hover td { background: var(--sunk); }
-  @media (max-width: 760px) { .opt { display: none; } }
+  td .sub.only-mob { display: none; }
+  @media (max-width: 760px) { .opt { display: none; } td .sub.only-mob { display: block; } }
+  @media (max-width: 480px) { th, td { padding-inline: 5px; } th { letter-spacing: 0; } table { font-size: 14px; } .card { padding: 16px; } .tablewrap { margin: 0 -16px; padding: 0 16px; } td input { width: 56px; } }
 
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
 
-  /* Chart */
+  /* ---------- Chart ---------- */
   .chart svg { width: 100%; height: auto; display: block; }
   .chart .grid line { stroke: var(--line); }
-  .chart .zero { stroke: var(--muted); }
-  .chart text { fill: var(--muted); font-size: 11px; font-family: var(--font-body); }
-  .chart text.val { fill: var(--ink); font-weight: 600; }
-  .chart .b-past { fill: var(--annual); }
-  .chart .b-cur { fill: var(--annual); }
-  .chart .b-fut { fill: var(--annual); fill-opacity: .38; }
+  .chart .zero { stroke: var(--faint); }
+  .chart text { fill: var(--muted); font-size: 12px; font-family: var(--font); }
+  .chart text.val { fill: var(--ink); font-weight: 700; font-size: 13px; }
+  .chart .b-past, .chart .b-cur { fill: var(--annual); }
+  .chart .b-fut { fill: var(--annual); fill-opacity: .35; }
   .chart .b-neg { fill: var(--bad); fill-opacity: 1; }
   .chart .now-line { stroke: var(--ink); stroke-dasharray: 3 3; }
 
-  details summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
-  label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--lieu); font-weight: 600; font-size: 14px; min-height: 36px; }
-  label.check input { width: 20px; height: 20px; accent-color: var(--lieu); }
+  details summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; color: var(--annual); list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::after { content: "›"; margin-left: 8px; transition: transform .2s; font-size: 20px; line-height: 1; }
+  details[open] summary::after { transform: rotate(90deg); }
+  label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: var(--lieu); font-weight: 650; font-size: 14px; min-height: 36px; flex: none; }
+  label.check input { width: 22px; height: 22px; accent-color: var(--lieu); margin: 0; }
+
+  /* ---------- Apply bar (Setup) ---------- */
+  .apply-bar {
+    position: sticky; bottom: 12px; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--bar);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    border: .5px solid var(--line); border-radius: 18px;
+    padding: 8px 8px 8px 16px; box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
+    font-size: 14px; color: var(--muted);
+  }
+  .apply-bar #applyMsg { flex: 1; min-width: 0; line-height: 1.3; }
+  .apply-bar .btn-row { flex: none; flex-wrap: nowrap; }
+  .apply-bar.dirty { color: var(--ink); }
+  .apply-bar.dirty #applyMsg { font-weight: 600; }
+  .apply-bar.error #applyMsg { color: var(--bad); font-weight: 600; }
+  @media (max-width: 760px) { .apply-bar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 10px); } }
+  @media (max-width: 400px) { .apply-bar #discardBtn { padding-inline: 10px; } }
 
   @media (prefers-reduced-motion: no-preference) {
-    .panel { animation: fade .18s ease-out; }
-    @keyframes fade { from { opacity: .6; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .panel { animation: fade .2s ease-out; }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   }
 </style>
-
 </head>
 <body>
 <header class="top">
@@ -301,25 +363,26 @@
 <main>
   <!-- Overview -->
   <section class="panel" id="p-overview" data-panel="overview">
+    <h2 class="page-title">Overview</h2>
     <div class="kpis" id="kpis"></div>
     <div class="alerts" id="alerts"></div>
     <div class="cols-3">
       <div class="card">
-        <div class="panel-head">
+        <div class="card-head">
           <h3 id="chartTitle">Annual leave balance</h3>
-          <span class="small muted">at the end of each month</span>
+          <span class="small muted">end of each month</span>
         </div>
         <div class="chart" id="chart"></div>
         <div class="legend">
-          <span><i style="background:var(--annual)"></i>Credited &amp; used so far</span>
-          <span><i style="background:var(--annual);opacity:.38"></i>Projected, including planned leave</span>
+          <span><i style="background:var(--annual)"></i>So far</span>
+          <span><i style="background:var(--annual);opacity:.35"></i>Projected, with planned leave</span>
           <span><i style="background:var(--bad)"></i>Below zero</span>
         </div>
       </div>
       <div class="card">
-        <div class="panel-head">
+        <div class="card-head">
           <h3>Coming up</h3>
-          <button class="btn small" data-go="leave">Plan leave</button>
+          <button class="btn small" data-go="leave" type="button">Plan leave</button>
         </div>
         <div class="list" id="upcoming"></div>
       </div>
@@ -328,34 +391,33 @@
 
   <!-- Leave -->
   <section class="panel" id="p-leave" data-panel="leave" hidden>
+    <h2 class="page-title">Leave</h2>
     <div class="cols">
+      <form class="stack" id="leaveForm" autocomplete="off">
+        <div class="group-title">Add leave</div>
+        <div class="seg type full" id="eType" role="group" aria-label="Leave type">
+          <button type="button" data-v="annual" aria-pressed="true">Annual leave</button>
+          <button type="button" data-v="lieu" aria-pressed="false">Leave in lieu</button>
+        </div>
+        <div class="group">
+          <label class="row-f"><span>From</span><input type="date" id="eDate" required></label>
+          <label class="row-f"><span>To<em>Optional, for several days</em></span><input type="date" id="eTo"></label>
+          <div class="row-f"><span>Length</span>
+            <div class="seg" id="eAmt" role="group" aria-label="Length">
+              <button type="button" data-v="1" aria-pressed="true">Full day</button>
+              <button type="button" data-v="0.5" aria-pressed="false">Half day</button>
+            </div>
+          </div>
+          <label class="row-f"><span>Note</span><input type="text" id="eNote" placeholder="e.g. Japan trip"></label>
+        </div>
+        <div class="preview" id="preview" aria-live="polite"></div>
+        <div class="confirm" id="confirm" hidden></div>
+        <button class="btn primary block" id="addBtn" type="submit">Add leave</button>
+        <p class="group-note" id="addMsg" aria-live="polite" style="color:var(--annual);font-weight:600"></p>
+        <p class="group-note">A date range adds every weekday in it. Dates after today count as <b>planned</b>.</p>
+      </form>
       <div class="card">
-        <h3>Add leave</h3>
-        <form class="form" id="leaveForm" autocomplete="off">
-          <div class="seg type" id="eType" role="group" aria-label="Leave type">
-            <button type="button" data-v="annual" aria-pressed="true">Annual leave</button>
-            <button type="button" data-v="lieu" aria-pressed="false">Leave in lieu</button>
-          </div>
-          <div class="row2 stack">
-            <label class="field"><span>From</span><input type="date" id="eDate" required></label>
-            <label class="field"><span>To (optional)</span><input type="date" id="eTo"></label>
-          </div>
-          <div class="seg" id="eAmt" role="group" aria-label="Amount">
-            <button type="button" data-v="1" aria-pressed="true">Full day</button>
-            <button type="button" data-v="0.5" aria-pressed="false">Half day</button>
-          </div>
-          <label class="field"><span>Note</span><input type="text" id="eNote" placeholder="e.g. Japan trip"></label>
-          <div class="preview" id="preview" aria-live="polite"></div>
-          <div class="confirm" id="confirm" hidden></div>
-          <div class="btn-row">
-            <button class="btn primary" id="addBtn" type="submit">Add leave</button>
-            <span class="small muted" id="addMsg" aria-live="polite"></span>
-          </div>
-          <p class="hint" style="margin:0">A date range adds every weekday in it. Dates after today count as <b>planned</b>.</p>
-        </form>
-      </div>
-      <div class="card">
-        <div class="panel-head">
+        <div class="card-head">
           <h3>Your leave</h3>
           <div class="seg" id="leaveFilter" role="group" aria-label="Show">
             <button type="button" data-v="upcoming" aria-pressed="true">Upcoming</button>
@@ -370,16 +432,15 @@
 
   <!-- Balances -->
   <section class="panel" id="p-balances" data-panel="balances" hidden>
-    <div class="panel-head">
-      <div class="seg" id="balView" role="group" aria-label="View">
-        <button type="button" data-v="months" aria-pressed="true">By month</button>
-        <button type="button" data-v="years" aria-pressed="false">By year</button>
-      </div>
-      <div class="seg" id="yearPick" role="group" aria-label="Working year"></div>
+    <h2 class="page-title">Balances</h2>
+    <div class="seg full" id="balView" role="group" aria-label="View" style="max-width:420px">
+      <button type="button" data-v="months" aria-pressed="true">By month</button>
+      <button type="button" data-v="years" aria-pressed="false">By year</button>
     </div>
+    <div class="chips" id="yearPick" role="group" aria-label="Working year"></div>
 
     <div class="card" id="monthsCard">
-      <h3 id="monthTitle">Month by month</h3>
+      <div class="card-head"><h3 id="monthTitle">Month by month</h3></div>
       <div class="tablewrap">
         <table>
           <thead>
@@ -388,7 +449,7 @@
               <th class="opt">Period</th>
               <th title="What you can use during the month">Available</th>
               <th>Used</th>
-              <th title="Credited at the end of the month">Credit</th>
+              <th class="opt" title="Credited at the end of the month">Credit</th>
               <th title="Balance at the end of the month">Balance</th>
               <th class="opt" title="Carried in + everything credited by year end − used so far">Left for year</th>
               <th class="lieu" title="Leave in lieu balance at the end of the month">In lieu</th>
@@ -397,17 +458,17 @@
           <tbody id="monthRows"></tbody>
         </table>
       </div>
-      <p class="hint"><b>Available</b> is what you can use during the month: carried in, plus leave credited in earlier months, minus leave used before it. <b>Credit</b> arrives at month end. <b>Balance</b> is after that month's credit and leave (taken and planned). <span style="color:var(--lieu)">In lieu</span> is a separate balance.</p>
+      <p class="hint"><b>Available</b> is what you can use during the month. <b>Credit</b> arrives at month end. <b>Balance</b> is after that month's credit and leave, including planned leave. Balances are rounded to whole days. <span style="color:var(--lieu)">In lieu</span> is a separate balance.</p>
     </div>
 
     <div class="card" id="yearsCard" hidden>
-      <h3>Year by year</h3>
+      <div class="card-head"><h3>Year by year</h3></div>
       <div class="tablewrap">
         <table>
           <thead>
             <tr>
-              <th>Working year</th>
-              <th>Per year</th>
+              <th>Year</th>
+              <th class="opt">Per year</th>
               <th class="opt">Carried in</th>
               <th class="opt">Credited</th>
               <th>Used</th>
@@ -420,49 +481,49 @@
           <tbody id="yearRows"></tbody>
         </table>
       </div>
-      <p class="hint">Carry-over needs approval. Type the approved number of days in <b>Carry over</b>. Leave it blank to assume the most allowed (<span id="policyEcho">14</span> days). Tap a year to see its months.</p>
+      <p class="hint">Carry-over needs approval. Type the approved number of days in <b>Carry over</b>, or leave it blank to assume the most allowed (<span id="policyEcho">14</span> days). Tap a year to see its months.</p>
     </div>
   </section>
 
   <!-- Leave in lieu -->
   <section class="panel" id="p-lieu" data-panel="lieu" hidden>
+    <h2 class="page-title">Leave in lieu</h2>
+    <p class="page-sub">Each Singapore public holiday on a Saturday earns 1 day.</p>
     <div class="cols">
       <div class="card">
-        <h3>Saturday public holidays</h3>
-        <p class="hint" style="margin-top:4px">Each Singapore public holiday that falls on a Saturday earns 1 day of leave in lieu on that date.</p>
+        <div class="card-head"><h3>Saturday public holidays</h3></div>
         <div class="list" id="satList"></div>
-        <details style="margin-top:8px">
+        <details style="margin-top:6px">
           <summary id="allHolSummary">All public holidays</summary>
           <div class="tablewrap">
             <table>
-              <thead><tr><th>Date</th><th>Day</th><th style="text-align:left">Holiday</th><th>Status</th></tr></thead>
+              <thead><tr><th>Date</th><th>Day</th><th style="text-align:left">Holiday</th><th class="opt">Status</th></tr></thead>
               <tbody id="holidayRows"></tbody>
             </table>
           </div>
           <p class="hint">2026 and 2027 dates are MOM's gazetted list. Later lunar-calendar holidays (Chinese New Year, Hari Raya, Vesak, Deepavali) are <b>estimates</b> and can move by a day or two. Correct a date here once MOM announces it.</p>
         </details>
       </div>
-      <div class="grid-stack" style="display:grid;gap:16px">
-        <div class="card">
-          <h3>Add leave in lieu yourself</h3>
-          <form class="form" id="lieuForm" autocomplete="off">
-            <div class="row2 stack">
-              <label class="field"><span>Date earned</span><input type="date" id="lDate" required></label>
-              <label class="field"><span>Days</span>
-                <select id="lAmt"><option value="1">1 day</option><option value="0.5">0.5 day</option></select>
-              </label>
-            </div>
-            <label class="field"><span>Note</span><input type="text" id="lNote" placeholder="e.g. Worked on a public holiday"></label>
-            <div class="btn-row"><button class="btn primary lieu" type="submit">Add leave in lieu</button></div>
-          </form>
+      <div class="stack">
+        <form class="stack" id="lieuForm" autocomplete="off">
+          <div class="group-title">Add leave in lieu yourself</div>
+          <div class="group">
+            <label class="row-f"><span>Date earned</span><input type="date" id="lDate" required></label>
+            <label class="row-f"><span>Days</span><select id="lAmt"><option value="1">1 day</option><option value="0.5">0.5 day</option></select></label>
+            <label class="row-f"><span>Note</span><input type="text" id="lNote" placeholder="e.g. Worked on a PH"></label>
+          </div>
+          <button class="btn primary lieu block" type="submit">Add leave in lieu</button>
+        </form>
+        <div class="group-title" style="margin-top:8px">Expiry</div>
+        <div class="group">
+          <label class="row-f"><span>Expires after<em>Months. Blank means never.</em></span><input type="number" id="lieuExpiry" min="1" step="1" inputmode="numeric" placeholder="Never"></label>
         </div>
-        <div class="card">
-          <div class="panel-head">
-            <h3>In lieu history</h3>
+        <div class="card" style="margin-top:8px">
+          <div class="card-head">
+            <h3>History</h3>
             <span class="small muted">oldest used first</span>
           </div>
           <div class="list" id="ledgerList"></div>
-          <label class="field" style="margin-top:12px"><span>Leave in lieu expires after (months, blank = never)</span><input type="number" id="lieuExpiry" min="1" step="1" inputmode="numeric"></label>
         </div>
       </div>
     </div>
@@ -470,74 +531,65 @@
 
   <!-- Setup -->
   <section class="panel" id="p-setup" data-panel="setup" hidden>
+    <h2 class="page-title">Setup</h2>
     <div class="cols">
-      <div class="card">
-        <h3>Your job</h3>
-        <div class="form">
-          <div class="row2 stack">
-            <label class="field"><span>Date I started work</span><input type="date" id="startDate"></label>
-            <label class="field"><span>Leave per year when I started</span><input type="number" id="annual" min="0" step="0.5" inputmode="decimal"></label>
-          </div>
-          <label class="field"><span>Month of your first leave credit (optional)</span><input type="month" id="accrualFrom" placeholder="YYYY-MM"></label>
-          <p class="hint" style="margin:0" id="accrualHint"></p>
-          <p class="hint" style="margin:0">Leave is credited at the <b>end</b> of each month: yearly leave ÷ 12.</p>
+      <div class="stack">
+        <div class="group-title">Your job</div>
+        <div class="group">
+          <label class="row-f"><span>Start date</span><input type="date" id="startDate"></label>
+          <label class="row-f"><span>Leave per year<em>When you started</em></span><input type="number" id="annual" min="0" step="0.5" inputmode="decimal"></label>
+          <label class="row-f"><span>Leave is credited</span><select id="creditDay"></select></label>
+          <label class="row-f"><span>First credit month<em>Optional</em></span><input type="month" id="accrualFrom" placeholder="YYYY-MM"></label>
+        </div>
+        <p class="group-note" id="accrualHint"></p>
+
+        <div class="group-title">Working year</div>
+        <div class="group">
+          <label class="row-f"><span>First year starts</span><input type="date" id="yearStart"></label>
+          <label class="row-f"><span>First year ends</span><input type="date" id="yearEnd"></label>
+          <label class="row-f"><span>Carried into first year</span><input type="number" id="carry" step="0.5" inputmode="decimal"></label>
+          <label class="row-f"><span>Years to plan ahead</span><input type="number" id="years" min="1" max="20" step="1" inputmode="numeric"></label>
         </div>
       </div>
-      <div class="card">
-        <h3>Working year</h3>
-        <div class="form">
-          <div class="row2 stack">
-            <label class="field"><span>First year starts</span><input type="date" id="yearStart"></label>
-            <label class="field"><span>First year ends</span><input type="date" id="yearEnd"></label>
-          </div>
-          <div class="row2 stack">
-            <label class="field"><span>Carried into first year</span><input type="number" id="carry" step="0.5" inputmode="decimal"></label>
-            <label class="field"><span>Years to plan ahead</span><input type="number" id="years" min="1" max="20" step="1" inputmode="numeric"></label>
-          </div>
+
+      <div class="stack">
+        <div class="group-title">Service increase</div>
+        <div class="group">
+          <label class="row-f"><span>Extra days per year</span><input type="number" id="bonusDays" min="0" step="0.5" inputmode="decimal"></label>
+          <label class="row-f"><span>For every … years</span><input type="number" id="bonusEvery" min="1" step="1" inputmode="numeric"></label>
+          <label class="row-f"><span>Most leave per year<em>Blank means no limit</em></span><input type="number" id="maxAnnual" min="0" step="0.5" inputmode="decimal" placeholder="None"></label>
         </div>
-      </div>
-      <div class="card">
-        <h3>Service increase</h3>
-        <div class="form">
-          <div class="row2 stack">
-            <label class="field"><span>Extra days per year</span><input type="number" id="bonusDays" min="0" step="0.5" inputmode="decimal"></label>
-            <label class="field"><span>For every … years</span><input type="number" id="bonusEvery" min="1" step="1" inputmode="numeric"></label>
-          </div>
-          <label class="field"><span>Most leave per year (blank = no limit)</span><input type="number" id="maxAnnual" min="0" step="0.5" inputmode="decimal"></label>
-          <p class="hint" style="margin:0" id="bonusHint"></p>
+        <p class="group-note" id="bonusHint"></p>
+
+        <div class="group-title">Year-end carry-over</div>
+        <div class="group">
+          <label class="row-f"><span>Most days you can carry</span><input type="number" id="policyCarry" min="0" step="0.5" inputmode="decimal"></label>
         </div>
-      </div>
-      <div class="card">
-        <h3>Year-end carry-over</h3>
-        <div class="form">
-          <label class="field"><span>Most days you can carry over</span><input type="number" id="policyCarry" min="0" step="0.5" inputmode="decimal"></label>
-          <p class="hint" style="margin:0">Carry-over needs approval each year. Enter the approved amount under <b>Balances → By year</b>.</p>
+        <p class="group-note">Carry-over needs approval each year. Enter the approved amount under <b>Balances → By year</b>.</p>
+
+        <div class="group-title">Your data</div>
+        <div class="group">
+          <button class="action" id="exportBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>Export backup</button>
+          <button class="action" id="importBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 10l5 5 5-5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>Import backup</button>
+          <button class="action danger" id="resetBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>Clear all data</button>
         </div>
-      </div>
-      <div class="card">
-        <h3>Your data</h3>
-        <p class="hint" style="margin-top:6px">Everything is saved on this device only. Nothing is sent anywhere. Export a backup now and then (save it to Files or iCloud Drive), and use Import to move your leave to another device.</p>
-        <div class="btn-row" style="margin-top:12px">
-          <button class="btn" id="exportBtn" type="button">Export backup</button>
-          <button class="btn" id="importBtn" type="button">Import backup</button>
-          <input type="file" id="importFile" accept="application/json,.json" hidden>
-          <button class="btn danger" id="resetBtn" type="button">Clear all data</button>
-        </div>
-        <div class="confirm" id="resetConfirm" hidden style="margin-top:12px">
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <div class="confirm" id="resetConfirm" hidden>
           <span>This deletes your settings and every leave entry on this device.</span>
           <div class="btn-row">
             <button class="btn small danger" id="resetYes" type="button">Delete everything</button>
             <button class="btn small" id="resetNo" type="button">Cancel</button>
           </div>
         </div>
-        <p class="small muted" id="dataMsg" aria-live="polite" style="margin:10px 0 0"></p>
+        <p class="group-note" id="dataMsg" aria-live="polite"></p>
+        <p class="group-note">Everything is saved on this device only. Export a backup now and then (save it to Files or iCloud Drive), and use Import to move your leave to another device.</p>
       </div>
     </div>
     <div class="apply-bar" id="applyBar">
       <span id="applyMsg" aria-live="polite">No changes to apply.</span>
       <div class="btn-row">
-        <button class="btn small" id="discardBtn" type="button">Undo changes</button>
-        <button class="btn primary" id="applyBtn" type="button">Apply</button>
+        <button class="btn small" id="discardBtn" type="button">Undo</button>
+        <button class="btn small primary" id="applyBtn" type="button">Apply</button>
       </div>
     </div>
   </section>
@@ -616,6 +668,7 @@ const num = n => (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, '') ||
 const days = n => `${num(n)} day${Math.abs(n) === 1 ? '' : 's'}`;
 // Balances are shown as whole days; hover or long-press shows the exact figure.
 const whole = n => String(Math.round(n) || 0);
+const ordinal = n => (n % 100 >= 11 && n % 100 <= 13) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th');
 const wb = n => `<span title="Exactly ${num(n)} days">${whole(n)}</span>`;
 const todayUTC = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); };
 const optNum = v => v === '' || v == null ? null : Number(v);
@@ -636,7 +689,7 @@ function addMonths(t, n) {
 function defaults() {
   const y = new Date().getFullYear();
   return {
-    startDate: `${y - 1}-01-01`, accrualFrom: '', annual: 14, carry: 0,
+    startDate: `${y - 1}-01-01`, creditDay: 'end', accrualFrom: '', annual: 14, carry: 0,
     yearStart: `${y}-01-01`, yearEnd: `${y}-12-31`, years: 5,
     bonusDays: 1, bonusEvery: 2, maxAnnual: '',
     policyCarry: 14, approvedCarry: {},
@@ -648,6 +701,12 @@ function normalize(s) {
   const out = Object.assign(defaults(), s && typeof s === 'object' ? s : {});
   for (const k of ['approvedCarry', 'holidayDates', 'lieuOff']) if (!out[k] || typeof out[k] !== 'object' || Array.isArray(out[k])) out[k] = {};
   for (const k of ['customLieu', 'entries']) if (!Array.isArray(out[k])) out[k] = [];
+  // Saved before the credit-day setting existed: keep crediting the day before the working year's start day.
+  if (s && s.creditDay == null && typeof s.yearStart === 'string') {
+    const d = Number(s.yearStart.slice(8, 10));
+    out.creditDay = d > 1 ? String(d - 1) : 'end';
+  }
+  out.creditDay = String(out.creditDay);
   return out;
 }
 function loadLocal() { try { return normalize(JSON.parse(localStorage.getItem(KEY))); } catch { return defaults(); } }
@@ -681,63 +740,64 @@ function workingYears() {
   return out;
 }
 
-// Monthly periods run from the working-year start date, e.g. 1 Apr–30 Apr or 16 Apr–15 May.
+// ---------- When leave is credited ----------
+// Months are numbered as year * 12 + month (0 = January) so credit dates never drift.
+const idxOf = t => { const d = new Date(t); return d.getUTCFullYear() * 12 + d.getUTCMonth(); };
+const lastDayOf = i => Date.UTC(Math.floor(i / 12), i % 12 + 1, 0);
+
+// The date leave is credited in month i: its last day, or the day you set (earlier in shorter months).
+function creditDate(i, s = state) {
+  if (!s.creditDay || s.creditDay === 'end') return lastDayOf(i);
+  return Date.UTC(Math.floor(i / 12), i % 12, Math.min(Number(s.creditDay), new Date(lastDayOf(i)).getUTCDate()));
+}
+const creditOnOrAfter = (t, s = state) => { const i = idxOf(t); return creditDate(i, s) >= t ? i : i + 1; };
+const lastCreditBy = (t, s = state) => { const i = idxOf(t); return creditDate(i, s) <= t ? i : i - 1; };
+
+// Month of your first credit: the one you chose, otherwise the first credit after a full month of work.
+function firstCreditIdx(s = state) {
+  if (s.accrualFrom && /^\d{4}-\d{2}$/.test(s.accrualFrom)) { const [y, m] = s.accrualFrom.split('-').map(Number); return y * 12 + m - 1; }
+  if (!s.startDate || !/^\d{4}-\d{2}-\d{2}$/.test(s.startDate)) return null;
+  return creditOnOrAfter(addMonths(parse(s.startDate), 1) - DAY, s);
+}
+// Date of your first credit.
+function accrualStart(s = state) { const i = firstCreditIdx(s); return i == null ? null : creditDate(i, s); }
+
+// Monthly periods inside a working year. Each ends on a credit date; any days after the year's last credit get no credit.
 function periods(ys, ye) {
   const out = [];
-  for (let i = 0; i < 24; i++) {
-    const s = addMonths(ys, i);
-    if (s > ye) break;
-    out.push({ s, e: Math.min(addMonths(ys, i + 1) - DAY, ye) });
+  let s = ys;
+  for (let i = creditOnOrAfter(ys); creditDate(i) <= ye; i++) {
+    const c = creditDate(i);
+    out.push({ s, e: c, idx: i });
+    s = c + DAY;
   }
+  if (s <= ye) out.push({ s, e: ye, idx: null });
   return out;
 }
 
-// First month that earns leave: the month you chose, otherwise the month after the one you started in.
-function accrualStart(s = state) {
-  if (!s.yearStart) return null;
-  const ys = parse(s.yearStart);
-  // Index of the monthly period (counted from the working-year start) that contains date t.
-  const periodOf = t => {
-    const a = new Date(t), b = new Date(ys);
-    let k = (a.getUTCFullYear() - b.getUTCFullYear()) * 12 + a.getUTCMonth() - b.getUTCMonth() - 1;
-    while (addMonths(ys, k + 1) <= t) k++;
-    return k;
-  };
-  if (s.accrualFrom) {
-    const from = parse(s.accrualFrom + '-01');
-    let k = periodOf(from);
-    if (addMonths(ys, k) < from) k++;
-    return addMonths(ys, k);
-  }
-  if (!s.startDate) return null;
-  return addMonths(ys, periodOf(parse(s.startDate)) + 1);
-}
-
-// Full years of leave-earning service completed on date t.
-function serviceYears(t) {
-  const from = accrualStart();
-  if (from == null) return 0;
-  let n = 0;
-  while (addMonths(from, 12 * (n + 1)) <= t) n++;
-  return n;
-}
-
-// Yearly leave that applies to a month, including the service increase.
-function yearlyRate(monthStart) {
-  const base = Number(state.annual) || 0;
-  const every = Math.max(Number(state.bonusEvery) || 0, 0);
-  const rate = base + (every ? Math.floor(serviceYears(monthStart) / every) * (Number(state.bonusDays) || 0) : 0);
-  const max = optNum(state.maxAnnual);
+// Yearly leave for the credit in month i: the service increase starts every `bonusEvery` years of credits.
+function rateForIdx(i, s = state) {
+  const base = Number(s.annual) || 0, first = firstCreditIdx(s);
+  const every = Math.max(Number(s.bonusEvery) || 0, 0);
+  const years = first == null || i < first ? 0 : Math.floor((i - first) / 12);
+  const rate = base + (every ? Math.floor(years / every) * (Number(s.bonusDays) || 0) : 0);
+  const max = optNum(s.maxAnnual);
   return max != null ? Math.min(rate, max) : rate;
+}
+// Yearly leave right now: the rate of your next credit.
+const yearlyRate = t => rateForIdx(lastCreditBy(t) + 1);
+
+// Full years of credits received by date t.
+function serviceYears(t) {
+  const first = firstCreditIdx();
+  return first == null ? 0 : Math.max(0, Math.floor((lastCreditBy(t) - first + 1) / 12));
 }
 
 function nextIncrease(today) {
-  const from = accrualStart(), every = Number(state.bonusEvery) || 0;
-  if (from == null || !every || !(Number(state.bonusDays) > 0)) return null;
-  const n = Math.floor(serviceYears(today) / every) + 1;
-  const t = addMonths(from, 12 * every * n);
-  const rate = yearlyRate(t);
-  return rate > yearlyRate(today) ? { t, rate } : null;
+  const now = lastCreditBy(today) + 1, r0 = rateForIdx(now);
+  if (!(Number(state.bonusDays) > 0) || !(Number(state.bonusEvery) > 0)) return null;
+  for (let i = now + 1; i < now + 12 * 40; i++) if (rateForIdx(i) > r0) return { t: creditDate(i), rate: rateForIdx(i) };
+  return null;
 }
 
 // Leave in lieu history: credits, use (oldest first) and expiry, in date order.
@@ -785,7 +845,7 @@ function lieuLedger(lastDay, today) {
 
 function calculate() {
   const start = state.startDate ? parse(state.startDate) : Infinity;
-  const acc = accrualStart();
+  const acc = accrualStart(), firstIdx = firstCreditIdx();
   // Months that end before you joined (or before you start earning, if that's earlier) aren't shown.
   const shownFrom = Math.min(start, acc ?? Infinity);
   const today = todayUTC();
@@ -800,9 +860,9 @@ function calculate() {
   const years = wy.map(y => {
     let totCredit = 0, totUsed = 0, prevRate = null;
     const months = periods(y.s, y.e).map(p => {
-      const rate = yearlyRate(p.s);
-      // Leave is earned from the accrual start month on, credited at the end of the month.
-      const credit = acc != null && p.s >= acc ? rate / 12 : 0;
+      const rate = p.idx != null ? rateForIdx(p.idx) : prevRate ?? yearlyRate(p.s);
+      // Leave is credited on each credit date from your first credit on.
+      const credit = p.idx != null && firstIdx != null && p.idx >= firstIdx ? rate / 12 : 0;
       const rateUp = prevRate != null && rate > prevRate;
       prevRate = rate;
       let taken = 0, planned = 0;
@@ -819,7 +879,9 @@ function calculate() {
         balance: carryIn + totCredit - totUsed,
         lieuEarned: lieuIn(p.s, p.e, 'credit'), lieuUsed: lieuIn(p.s, p.e, 'use'),
         lieuExpired: lieuIn(p.s, p.e, 'expire'), lieuBal: lieuBalAt(p.e),
-        before: p.e < shownFrom, joined: start >= p.s && start <= p.e, firstCredit: acc === p.s,
+        before: p.e < shownFrom, joined: start >= p.s && start <= p.e, firstCredit: p.idx != null && p.idx === firstIdx,
+        lab: D(p.e, { month: 'short' }), tail: p.idx == null,
+        calMonth: new Date(p.s).getUTCDate() === 1 && p.e === lastDayOf(idxOf(p.e)),
         when: p.e < today ? 'past' : p.s > today ? 'future' : 'current'
       };
     });
@@ -947,7 +1009,8 @@ function niceStep(raw) {
   return Math.max(1, (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p);
 }
 function chartSvg(months) {
-  const W = 640, H = 220, L = 30, R = 6, T = 22, B = 24;
+  // A narrower drawing on phones keeps the labels readable once it's scaled to the screen.
+  const W = window.innerWidth < 600 ? 380 : 640, H = window.innerWidth < 600 ? 230 : 220, L = 28, R = 6, T = 24, B = 24;
   const vals = months.map(m => m.balance);
   let max = Math.max(1, ...vals), min = Math.min(0, ...vals);
   const step = niceStep((max - min) / 4);
@@ -963,7 +1026,7 @@ function chartSvg(months) {
     const top = y(Math.max(m.balance, 0)), bot = y(Math.min(m.balance, 0));
     const cls = m.balance < 0 ? 'b-neg' : m.when === 'future' ? 'b-fut' : m.when === 'current' ? 'b-cur' : 'b-past';
     bars += `<rect class="${cls}" x="${x}" y="${top}" width="${w}" height="${Math.max(bot - top, 1)}" rx="3"><title>${monthName(m.s)}: ${num(m.balance)} days at month end</title></rect>`;
-    bars += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${D(m.s, { month: 'short' }).slice(0, 3)}</text>`;
+    bars += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${m.lab.slice(0, 3)}</text>`;
     if (m.when === 'current' || i === months.length - 1)
       bars += `<text class="val" x="${x + w / 2}" y="${m.balance < 0 ? bot + 13 : top - 6}" text-anchor="middle">${whole(m.balance)}</text>`;
     if (m.when === 'current')
@@ -1022,20 +1085,20 @@ function renderBalances() {
   $('monthTitle').textContent = yearLabel(vy);
   $('monthRows').innerHTML = vy.months.filter(r => !r.before).map(r => `
     <tr class="${r.when}">
-      <td>${D(r.s, { month: 'short' })}${r.when === 'current' ? ' <span class="tag now">Now</span>' : ''}${r.joined ? `<span class="sub">Started ${nice(parse(state.startDate))}</span>` : ''}${r.firstCredit ? '<span class="sub" style="color:var(--annual)">First credit</span>' : ''}${r.rateUp ? `<span class="sub" style="color:var(--annual)">Now ${num(r.rate)} days/yr</span>` : ''}</td>
+      <td>${r.lab}${r.when === 'current' ? ' <span class="tag now">Now</span>' : ''}${!r.calMonth ? `<span class="sub only-mob">${nice(r.s)} – ${nice(r.e)}</span>` : ''}${r.tail ? '<span class="sub">No credit before year end</span>' : ''}${r.joined ? `<span class="sub">Started ${nice(parse(state.startDate))}</span>` : ''}${r.firstCredit ? '<span class="sub" style="color:var(--annual)">First credit</span>' : ''}${r.rateUp ? `<span class="sub" style="color:var(--annual)">Now ${num(r.rate)} days/yr</span>` : ''}</td>
       <td class="opt">${nice(r.s)} – ${nice(r.e)}</td>
       <td class="${r.available < 0 ? 'neg' : ''}">${wb(r.available)}</td>
       <td class="${r.overdrawn ? 'neg' : ''}">${r.used ? num(r.used) : '–'}${r.planned ? `<span class="sub">${num(r.planned)} planned</span>` : ''}</td>
-      <td>${r.credit ? '+' + num(r.credit) : '–'}</td>
-      <td class="strong ${r.balance < 0 ? 'neg' : ''}">${wb(r.balance)}</td>
+      <td class="opt">${r.credit ? '+' + num(r.credit) : '–'}</td>
+      <td class="strong ${r.balance < 0 ? 'neg' : ''}">${wb(r.balance)}${r.credit ? `<span class="sub only-mob">+${num(r.credit)} credit</span>` : ''}</td>
       <td class="opt ${r.left < 0 ? 'neg' : ''}">${wb(r.left)}</td>
-      <td class="lieu ${r.lieuBal < 0 ? 'neg' : ''}">${wb(r.lieuBal)}${r.lieuEarned ? `<span class="sub" style="color:var(--lieu)">+${num(r.lieuEarned)} earned</span>` : ''}${r.lieuUsed ? `<span class="sub">${num(r.lieuUsed)} used</span>` : ''}${r.lieuExpired ? `<span class="sub neg">${num(r.lieuExpired)} expired</span>` : ''}</td>
+      <td class="lieu ${r.lieuBal < 0 ? 'neg' : ''}">${wb(r.lieuBal)}${r.lieuEarned ? `<span class="sub" style="color:var(--lieu)" title="Earned">+${num(r.lieuEarned)}</span>` : ''}${r.lieuUsed ? `<span class="sub" title="Used">−${num(r.lieuUsed)}</span>` : ''}${r.lieuExpired ? `<span class="sub neg" title="Expired">−${num(r.lieuExpired)} exp.</span>` : ''}</td>
     </tr>`).join('');
 
   $('yearRows').innerHTML = years.map((y, i) => y.before ? '' : `
     <tr data-year="${i}" class="${y.when === 'current' ? 'current' : y.when}">
-      <td>${yearShort(y)}${y.when === 'current' ? ' <span class="tag now">Now</span>' : ''}</td>
-      <td>${y.rates.map(num).join(' → ')}</td>
+      <td>${yearShort(y)}${y.when === 'current' ? ' <span class="tag now">Now</span>' : ''}<span class="sub only-mob">${y.rates.map(num).join(' → ')} days/yr</span></td>
+      <td class="opt">${y.rates.map(num).join(' → ')}</td>
       <td class="opt">${wb(y.carryIn)}</td>
       <td class="opt">${num(y.totCredit)}</td>
       <td>${num(y.taken + y.planned)}${y.planned ? `<span class="sub">${num(y.planned)} planned</span>` : ''}</td>
@@ -1072,8 +1135,8 @@ function renderLieu() {
     <tr>
       <td><input type="date" data-hol="${h.id}" value="${h.date}" aria-label="${esc(h.name)} date"></td>
       <td style="${isSaturday(h.t) ? 'color:var(--lieu);font-weight:650' : ''}">${weekday(h.t)}</td>
-      <td style="text-align:left">${esc(h.name)}</td>
-      <td><span class="tag ${h.status === 'estimated' ? 'est' : 'ok'}">${STATUS_LABEL[h.status]}</span></td>
+      <td style="text-align:left">${esc(h.name)}${h.status === 'estimated' ? '<span class="sub only-mob" style="color:var(--planned)">Estimated</span>' : ''}</td>
+      <td class="opt"><span class="tag ${h.status === 'estimated' ? 'est' : 'ok'}">${STATUS_LABEL[h.status]}</span></td>
     </tr>`).join('');
 
   $('ledgerList').innerHTML = ledger.length ? [...ledger].reverse().map(l => `
@@ -1091,14 +1154,17 @@ function renderLieu() {
 // Setup hints describe what you've typed, before you press Apply.
 function renderSetup() {
   const d = readDraft().draft;
-  const from = accrualStart(d), every = Number(d.bonusEvery) || 0;
-  const auto = accrualStart({ ...d, accrualFrom: '' });
+  const first = firstCreditIdx(d), every = Number(d.bonusEvery) || 0;
+  const from = first == null ? null : creditDate(first, d);
+  const autoIdx = firstCreditIdx({ ...d, accrualFrom: '' });
+  const day = d.creditDay === 'end' ? null : Number(d.creditDay);
+  const when = day == null ? 'on the last day of each month' : `on the ${day}${ordinal(day)} of each month${day > 28 ? ' (or the last day of shorter months)' : ''}`;
   $('accrualHint').textContent = from == null ? 'Set your start date first.'
     : d.accrualFrom
-      ? `Your first credit arrives at the end of ${monthLong(from)}. Clear this to go back to the default: the month after you start (${auto != null ? monthName(auto) : 'set your start date'}).`
-      : `Your first credit arrives at the end of ${monthLong(from)}, the month after you start. Pick a month here to change it.`;
-  $('bonusHint').textContent = from == null || !every ? 'Set your start date to see when the increase starts.'
-    : `You start earning leave in ${monthName(from)}, so each increase starts in ${D(from, { month: 'long' })}: the first in ${monthName(addMonths(from, 12 * every))}.`;
+      ? `Your first credit arrives on ${niceY(from)}. Clear the month to go back to the default: the first credit after one month of work${autoIdx != null ? ` (${niceY(creditDate(autoIdx, d))})` : ''}.`
+      : `Leave (yearly leave ÷ 12) is credited ${when}. Your first credit arrives on ${niceY(from)}, after one month of work. Set a month to change it.`;
+  $('bonusHint').textContent = first == null || !every ? 'Set your start date to see when the increase starts.'
+    : `Each increase starts with your ${D(from, { month: 'long' })} credit: the first on ${niceY(creditDate(first + 12 * every, d))}.`;
 }
 
 // ---------- Leave form ----------
@@ -1179,7 +1245,7 @@ function showTab(id, push = true) {
 
 // ---------- Settings fields ----------
 // Setup fields are a draft until you press Apply. Leave in lieu expiry (on its own tab) applies straight away.
-const SETUP = ['startDate', 'accrualFrom', 'annual', 'carry', 'yearStart', 'yearEnd', 'years', 'bonusDays', 'bonusEvery', 'maxAnnual', 'policyCarry'];
+const SETUP = ['startDate', 'creditDay', 'accrualFrom', 'annual', 'carry', 'yearStart', 'yearEnd', 'years', 'bonusDays', 'bonusEvery', 'maxAnnual', 'policyCarry'];
 const OPTIONAL = new Set(['maxAnnual', 'lieuExpiry', 'accrualFrom']);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, MONTH_RE = /^\d{4}-\d{2}$/;
 
@@ -1196,7 +1262,9 @@ function readDraft() {
     const el = $(f), v = el.value.trim();
     if (el.type === 'date') {
       draft[f] = v;
-      if (!DATE_RE.test(v) || Number(v.slice(0, 4)) < 1950) bad(f, `Enter a full date for “${el.closest('label').querySelector('span').textContent}”.`);
+      if (!DATE_RE.test(v) || Number(v.slice(0, 4)) < 1950) bad(f, `Enter a full date for “${el.closest('label').querySelector('span').firstChild.textContent.trim()}”.`);
+    } else if (el.tagName === 'SELECT') {
+      draft[f] = v;
     } else if (f === 'accrualFrom') {
       draft[f] = v;
       if (v && !MONTH_RE.test(v)) bad(f, 'Enter the month to start earning leave as YYYY-MM, or leave it blank.');
@@ -1236,7 +1304,7 @@ function applySetup() {
   ui.viewYear = null;
   save(); render(); loadFields();
   const acc = accrualStart();
-  $('applyMsg').textContent = `Applied. Leave is earned from ${acc != null ? monthName(acc) : 'your start date'}.`;
+  $('applyMsg').textContent = acc != null ? `Applied. Your first credit is on ${niceY(acc)}.` : 'Applied.';
   $('applyMsg').dataset.keep = '1';
   setTimeout(() => { delete $('applyMsg').dataset.keep; updateApplyBar(); }, 4000);
 }
@@ -1389,6 +1457,8 @@ function wire() {
 }
 
 // ---------- Start ----------
+$('creditDay').innerHTML = '<option value="end">On the last day of the month</option>' +
+  Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">On the ${i + 1}${ordinal(i + 1)}</option>`).join('');
 tabButtons();
 wire();
 loadFields();
