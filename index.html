@@ -52,7 +52,12 @@
   }
 
   * { box-sizing: border-box; }
+  /* Tabs you're not on are hidden with the hidden attribute; this must beat .panel's display: grid. */
+  [hidden] { display: none !important; }
+  html { color-scheme: light; }
+  img { max-width: 100%; }
   body {
+    margin: 0;
     background: var(--bg); color: var(--ink);
     font: 15px/1.5 var(--font-body);
     -webkit-tap-highlight-color: transparent;
@@ -85,6 +90,24 @@
   .sync[data-s="cloud"]::before { background: var(--annual); }
   .sync[data-s="saving"]::before { background: var(--planned); }
   .sync[data-s="error"]::before { background: var(--bad); }
+
+  /* Setup: changes wait for Apply */
+  .apply-bar {
+    position: sticky; bottom: 12px; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px 12px 10px 16px; box-shadow: 0 6px 20px rgb(0 0 0 / .12);
+    font-size: 14px; color: var(--muted);
+  }
+  .apply-bar.dirty { border-color: var(--annual); color: var(--ink); }
+  .apply-bar.dirty #applyMsg { font-weight: 600; }
+  .apply-bar.error { border-color: var(--bad); }
+  .apply-bar.error #applyMsg { color: var(--bad); font-weight: 600; }
+  .apply-bar .btn:disabled { opacity: .45; cursor: default; }
+  .field input.invalid { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+  .tab.dirty span { position: relative; }
+  .tab.dirty span::after { content: ""; position: absolute; top: -2px; right: -8px; width: 7px; height: 7px; border-radius: 50%; background: var(--planned); }
+  @media (max-width: 760px) { .apply-bar { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 10px); } }
 
   .tabs { display: flex; gap: 4px; }
   .tab {
@@ -455,7 +478,9 @@
             <label class="field"><span>Date I started work</span><input type="date" id="startDate"></label>
             <label class="field"><span>Leave per year when I started</span><input type="number" id="annual" min="0" step="0.5" inputmode="decimal"></label>
           </div>
-          <p class="hint" style="margin:0">Leave is credited at the <b>end</b> of each full month of service: yearly leave ÷ 12. The month you started in earns nothing unless you started on the 1st.</p>
+          <label class="field"><span>Month of your first leave credit (optional)</span><input type="month" id="accrualFrom" placeholder="YYYY-MM"></label>
+          <p class="hint" style="margin:0" id="accrualHint"></p>
+          <p class="hint" style="margin:0">Leave is credited at the <b>end</b> of each month: yearly leave ÷ 12.</p>
         </div>
       </div>
       <div class="card">
@@ -506,6 +531,13 @@
           </div>
         </div>
         <p class="small muted" id="dataMsg" aria-live="polite" style="margin:10px 0 0"></p>
+      </div>
+    </div>
+    <div class="apply-bar" id="applyBar">
+      <span id="applyMsg" aria-live="polite">No changes to apply.</span>
+      <div class="btn-row">
+        <button class="btn small" id="discardBtn" type="button">Undo changes</button>
+        <button class="btn primary" id="applyBtn" type="button">Apply</button>
       </div>
     </div>
   </section>
@@ -582,6 +614,9 @@ const monthLong = t => D(t, { month: 'long', year: 'numeric' });
 const weekday = t => D(t, { weekday: 'short' });
 const num = n => (Math.round(n * 100) / 100).toFixed(2).replace(/\.?0+$/, '') || '0';
 const days = n => `${num(n)} day${Math.abs(n) === 1 ? '' : 's'}`;
+// Balances are shown as whole days; hover or long-press shows the exact figure.
+const whole = n => String(Math.round(n) || 0);
+const wb = n => `<span title="Exactly ${num(n)} days">${whole(n)}</span>`;
 const todayUTC = () => { const n = new Date(); return Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()); };
 const optNum = v => v === '' || v == null ? null : Number(v);
 const isSaturday = t => new Date(t).getUTCDay() === 6;
@@ -601,7 +636,7 @@ function addMonths(t, n) {
 function defaults() {
   const y = new Date().getFullYear();
   return {
-    startDate: `${y - 1}-01-01`, annual: 14, carry: 0,
+    startDate: `${y - 1}-01-01`, accrualFrom: '', annual: 14, carry: 0,
     yearStart: `${y}-01-01`, yearEnd: `${y}-12-31`, years: 5,
     bonusDays: 1, bonusEvery: 2, maxAnnual: '',
     policyCarry: 14, approvedCarry: {},
@@ -657,14 +692,25 @@ function periods(ys, ye) {
   return out;
 }
 
-// First month that earns leave: the first full month on or after the start date.
-function accrualStart() {
-  if (!state.startDate) return null;
-  const start = parse(state.startDate), ys = parse(state.yearStart);
-  const a = new Date(start), b = new Date(ys);
-  let k = (a.getUTCFullYear() - b.getUTCFullYear()) * 12 + a.getUTCMonth() - b.getUTCMonth() - 1;
-  while (addMonths(ys, k) < start) k++;
-  return addMonths(ys, k);
+// First month that earns leave: the month you chose, otherwise the month after the one you started in.
+function accrualStart(s = state) {
+  if (!s.yearStart) return null;
+  const ys = parse(s.yearStart);
+  // Index of the monthly period (counted from the working-year start) that contains date t.
+  const periodOf = t => {
+    const a = new Date(t), b = new Date(ys);
+    let k = (a.getUTCFullYear() - b.getUTCFullYear()) * 12 + a.getUTCMonth() - b.getUTCMonth() - 1;
+    while (addMonths(ys, k + 1) <= t) k++;
+    return k;
+  };
+  if (s.accrualFrom) {
+    const from = parse(s.accrualFrom + '-01');
+    let k = periodOf(from);
+    if (addMonths(ys, k) < from) k++;
+    return addMonths(ys, k);
+  }
+  if (!s.startDate) return null;
+  return addMonths(ys, periodOf(parse(s.startDate)) + 1);
 }
 
 // Full years of leave-earning service completed on date t.
@@ -739,6 +785,9 @@ function lieuLedger(lastDay, today) {
 
 function calculate() {
   const start = state.startDate ? parse(state.startDate) : Infinity;
+  const acc = accrualStart();
+  // Months that end before you joined (or before you start earning, if that's earlier) aren't shown.
+  const shownFrom = Math.min(start, acc ?? Infinity);
   const today = todayUTC();
   const policy = Number(state.policyCarry) || 0;
   const annualEntries = state.entries.filter(e => !isLieu(e));
@@ -752,8 +801,8 @@ function calculate() {
     let totCredit = 0, totUsed = 0, prevRate = null;
     const months = periods(y.s, y.e).map(p => {
       const rate = yearlyRate(p.s);
-      // Only full months of service earn leave, credited at the end of the month.
-      const credit = start <= p.s ? rate / 12 : 0;
+      // Leave is earned from the accrual start month on, credited at the end of the month.
+      const credit = acc != null && p.s >= acc ? rate / 12 : 0;
       const rateUp = prevRate != null && rate > prevRate;
       prevRate = rate;
       let taken = 0, planned = 0;
@@ -770,6 +819,7 @@ function calculate() {
         balance: carryIn + totCredit - totUsed,
         lieuEarned: lieuIn(p.s, p.e, 'credit'), lieuUsed: lieuIn(p.s, p.e, 'use'),
         lieuExpired: lieuIn(p.s, p.e, 'expire'), lieuBal: lieuBalAt(p.e),
+        before: p.e < shownFrom, joined: start >= p.s && start <= p.e, firstCredit: acc === p.s,
         when: p.e < today ? 'past' : p.s > today ? 'future' : 'current'
       };
     });
@@ -787,6 +837,7 @@ function calculate() {
       taken: months.reduce((a, m) => a + m.taken, 0),
       planned: months.reduce((a, m) => a + m.planned, 0),
       lieuEarned: lieuIn(y.s, y.e, 'credit'), lieuUsed: lieuIn(y.s, y.e, 'use'),
+      before: y.e < shownFrom,
       when: y.e < today ? 'past' : y.s > today ? 'future' : 'current'
     };
     carryIn = carryOut;
@@ -855,11 +906,11 @@ function renderOverview() {
   const upcomingLieu = holidays().map(h => ({ ...h, t: parse(h.date) }))
     .filter(h => isSaturday(h.t) && h.t > today && !state.lieuOff[h.id]).sort((a, b) => a.t - b.t);
   const kpis = [
-    { cls: 'annual', k: 'Annual leave you can use now', v: annualNow == null ? '–' : num(annualNow), unit: 'days',
+    { cls: 'annual', k: 'Annual leave you can use now', v: annualNow == null ? '–' : wb(annualNow), unit: 'days',
       s: cur ? `Credited up to the end of last month, minus leave taken` : 'Today is outside your working years' },
-    { cls: 'lieu', k: 'Leave in lieu now', v: num(lieuNow), unit: 'days',
+    { cls: 'lieu', k: 'Leave in lieu now', v: wb(lieuNow), unit: 'days',
       s: upcomingLieu[0] ? `Next: ${upcomingLieu[0].name}, ${niceY(upcomingLieu[0].t)}` : 'No more Saturday holidays listed' },
-    { k: `Annual leave at end of ${yearShort(curY)}`, v: num(curY.end), unit: 'days', neg: curY.end < 0,
+    { k: `Annual leave at end of ${yearShort(curY)}`, v: wb(curY.end), unit: 'days', neg: Math.round(curY.end) < 0,
       s: curY.lost > 0.001 ? `${days(curY.lost)} over the carry-over limit` : `Including planned leave` },
     { k: 'Leave per year', v: num(yearlyRate(today)), unit: 'days',
       s: inc ? `${num(inc.rate)} days from ${monthName(inc.t)}` : `${serviceYears(today)} full years of service` },
@@ -875,7 +926,8 @@ function renderOverview() {
   $('alerts').innerHTML = alerts || (state.entries.length ? '<div class="alert ok">All your planned leave fits within your balances.</div>' : '');
 
   $('chartTitle').textContent = `Annual leave balance, ${yearShort(curY)}`;
-  $('chart').innerHTML = chartSvg(curY.months);
+  const shown = curY.months.filter(m => !m.before);
+  $('chart').innerHTML = shown.length ? chartSvg(shown) : '<p class="empty">You start work after this year.</p>';
 
   // Next planned leave and Saturday holidays, together in date order
   const planned = state.entries.filter(e => parse(e.date) >= today).map(e => ({ t: parse(e.date), e }));
@@ -913,7 +965,7 @@ function chartSvg(months) {
     bars += `<rect class="${cls}" x="${x}" y="${top}" width="${w}" height="${Math.max(bot - top, 1)}" rx="3"><title>${monthName(m.s)}: ${num(m.balance)} days at month end</title></rect>`;
     bars += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${D(m.s, { month: 'short' }).slice(0, 3)}</text>`;
     if (m.when === 'current' || i === months.length - 1)
-      bars += `<text class="val" x="${x + w / 2}" y="${m.balance < 0 ? bot + 13 : top - 6}" text-anchor="middle">${num(m.balance)}</text>`;
+      bars += `<text class="val" x="${x + w / 2}" y="${m.balance < 0 ? bot + 13 : top - 6}" text-anchor="middle">${whole(m.balance)}</text>`;
     if (m.when === 'current')
       bars += `<line class="now-line" x1="${x + w / 2}" x2="${x + w / 2}" y1="${T - 12}" y2="${top - 18}"/><text x="${x + w / 2}" y="${T - 14}" text-anchor="middle">now</text>`;
   });
@@ -957,7 +1009,10 @@ function renderLeave() {
 
 function renderBalances() {
   const { years } = calc;
-  $('yearPick').innerHTML = years.map((y, i) => `<button type="button" data-v="${i}" aria-pressed="${i === ui.viewYear}">${yearShort(y)}</button>`).join('');
+  // Skip working years that end before you joined.
+  const firstShown = Math.max(0, years.findIndex(y => !y.before));
+  if (ui.viewYear < firstShown) ui.viewYear = firstShown;
+  $('yearPick').innerHTML = years.map((y, i) => y.before ? '' : `<button type="button" data-v="${i}" aria-pressed="${i === ui.viewYear}">${yearShort(y)}</button>`).join('');
   $('yearPick').hidden = ui.balView !== 'months';
   $('monthsCard').hidden = ui.balView !== 'months';
   $('yearsCard').hidden = ui.balView !== 'years';
@@ -965,26 +1020,26 @@ function renderBalances() {
 
   const vy = years[ui.viewYear];
   $('monthTitle').textContent = yearLabel(vy);
-  $('monthRows').innerHTML = vy.months.map(r => `
+  $('monthRows').innerHTML = vy.months.filter(r => !r.before).map(r => `
     <tr class="${r.when}">
-      <td>${D(r.s, { month: 'short' })}${r.when === 'current' ? ' <span class="tag now">Now</span>' : ''}${r.rateUp ? `<span class="sub" style="color:var(--annual)">Now ${num(r.rate)} days/yr</span>` : ''}</td>
+      <td>${D(r.s, { month: 'short' })}${r.when === 'current' ? ' <span class="tag now">Now</span>' : ''}${r.joined ? `<span class="sub">Started ${nice(parse(state.startDate))}</span>` : ''}${r.firstCredit ? '<span class="sub" style="color:var(--annual)">First credit</span>' : ''}${r.rateUp ? `<span class="sub" style="color:var(--annual)">Now ${num(r.rate)} days/yr</span>` : ''}</td>
       <td class="opt">${nice(r.s)} – ${nice(r.e)}</td>
-      <td class="${r.available < 0 ? 'neg' : ''}">${num(r.available)}</td>
+      <td class="${r.available < 0 ? 'neg' : ''}">${wb(r.available)}</td>
       <td class="${r.overdrawn ? 'neg' : ''}">${r.used ? num(r.used) : '–'}${r.planned ? `<span class="sub">${num(r.planned)} planned</span>` : ''}</td>
       <td>${r.credit ? '+' + num(r.credit) : '–'}</td>
-      <td class="strong ${r.balance < 0 ? 'neg' : ''}">${num(r.balance)}</td>
-      <td class="opt ${r.left < 0 ? 'neg' : ''}">${num(r.left)}</td>
-      <td class="lieu ${r.lieuBal < 0 ? 'neg' : ''}">${num(r.lieuBal)}${r.lieuEarned ? `<span class="sub" style="color:var(--lieu)">+${num(r.lieuEarned)} earned</span>` : ''}${r.lieuUsed ? `<span class="sub">${num(r.lieuUsed)} used</span>` : ''}${r.lieuExpired ? `<span class="sub neg">${num(r.lieuExpired)} expired</span>` : ''}</td>
+      <td class="strong ${r.balance < 0 ? 'neg' : ''}">${wb(r.balance)}</td>
+      <td class="opt ${r.left < 0 ? 'neg' : ''}">${wb(r.left)}</td>
+      <td class="lieu ${r.lieuBal < 0 ? 'neg' : ''}">${wb(r.lieuBal)}${r.lieuEarned ? `<span class="sub" style="color:var(--lieu)">+${num(r.lieuEarned)} earned</span>` : ''}${r.lieuUsed ? `<span class="sub">${num(r.lieuUsed)} used</span>` : ''}${r.lieuExpired ? `<span class="sub neg">${num(r.lieuExpired)} expired</span>` : ''}</td>
     </tr>`).join('');
 
-  $('yearRows').innerHTML = years.map((y, i) => `
+  $('yearRows').innerHTML = years.map((y, i) => y.before ? '' : `
     <tr data-year="${i}" class="${y.when === 'current' ? 'current' : y.when}">
       <td>${yearShort(y)}${y.when === 'current' ? ' <span class="tag now">Now</span>' : ''}</td>
       <td>${y.rates.map(num).join(' → ')}</td>
-      <td class="opt">${num(y.carryIn)}</td>
+      <td class="opt">${wb(y.carryIn)}</td>
       <td class="opt">${num(y.totCredit)}</td>
       <td>${num(y.taken + y.planned)}${y.planned ? `<span class="sub">${num(y.planned)} planned</span>` : ''}</td>
-      <td class="strong ${y.end < 0 ? 'neg' : ''}">${num(y.end)}</td>
+      <td class="strong ${y.end < 0 ? 'neg' : ''}">${wb(y.end)}</td>
       <td><input type="number" min="0" step="0.5" inputmode="decimal" data-carry="${y.key}" value="${y.approved ?? ''}" placeholder="${num(y.allowed)}" aria-label="Approved carry-over for ${yearShort(y)}"></td>
       <td class="${y.lost > 0.001 ? 'neg' : ''}">${num(y.lost)}</td>
       <td class="lieu opt">+${num(y.lieuEarned)} / −${num(y.lieuUsed)}</td>
@@ -1026,17 +1081,24 @@ function renderLieu() {
       <div class="date-badge ${l.kind === 'credit' ? 'lieu' : ''}" style="${l.kind === 'expire' ? 'background:var(--bad-soft);color:var(--bad)' : l.kind === 'use' ? 'background:var(--sunk);color:var(--ink)' : ''}"><b>${D(l.t, { day: 'numeric' })}</b><span>${D(l.t, { month: 'short' })}</span></div>
       <div class="item-main">
         <div class="t">${esc(l.note)}</div>
-        <div class="m">${D(l.t, { year: 'numeric' })} · ${esc(l.sub)}${l.planned ? ' <span class="tag planned">Planned</span>' : ''}${l.est ? ' <span class="tag est">Estimated date</span>' : ''}${l.short ? ` <span class="tag bad">Short ${num(l.short)}</span>` : ''} · balance ${num(l.balance)}</div>
+        <div class="m">${D(l.t, { year: 'numeric' })} · ${esc(l.sub)}${l.planned ? ' <span class="tag planned">Planned</span>' : ''}${l.est ? ' <span class="tag est">Estimated date</span>' : ''}${l.short ? ` <span class="tag bad">Short ${num(l.short)}</span>` : ''} · balance ${whole(l.balance)}</div>
       </div>
       <span class="item-amt" style="color:${l.kind === 'credit' ? 'var(--lieu)' : 'var(--bad)'}">${l.kind === 'credit' ? '+' : '−'}${num(l.amount)}</span>
       ${l.id ? `<button class="x" data-dellieu="${l.id}" aria-label="Remove">✕</button>` : ''}
     </div>`).join('') : '<p class="empty">No leave in lieu yet.</p>';
 }
 
+// Setup hints describe what you've typed, before you press Apply.
 function renderSetup() {
-  const from = accrualStart(), every = Number(state.bonusEvery) || 0;
+  const d = readDraft().draft;
+  const from = accrualStart(d), every = Number(d.bonusEvery) || 0;
+  const auto = accrualStart({ ...d, accrualFrom: '' });
+  $('accrualHint').textContent = from == null ? 'Set your start date first.'
+    : d.accrualFrom
+      ? `Your first credit arrives at the end of ${monthLong(from)}. Clear this to go back to the default: the month after you start (${auto != null ? monthName(auto) : 'set your start date'}).`
+      : `Your first credit arrives at the end of ${monthLong(from)}, the month after you start. Pick a month here to change it.`;
   $('bonusHint').textContent = from == null || !every ? 'Set your start date to see when the increase starts.'
-    : `You started earning leave in ${monthName(from)}, so each increase starts in ${D(from, { month: 'long' })}: the first in ${monthName(addMonths(from, 12 * every))}.`;
+    : `You start earning leave in ${monthName(from)}, so each increase starts in ${D(from, { month: 'long' })}: the first in ${monthName(addMonths(from, 12 * every))}.`;
 }
 
 // ---------- Leave form ----------
@@ -1071,7 +1133,7 @@ function updatePreview() {
     for (const i of yi) {
       if (i < 0) { lines.push('<span class="bad">Some dates are outside your planning years.</span>'); continue; }
       const b = calc.years[i], a = after.years[i];
-      lines.push(`Year-end balance for ${yearShort(a)}: ${num(b.end)} → <b>${num(a.end)}</b>`);
+      lines.push(`Year-end balance for ${yearShort(a)}: ${whole(b.end)} → <b>${whole(a.end)}</b>`);
     }
     const newShort = after.years.flatMap(y => y.months).filter(m => m.overdrawn)
       .filter(m => !calc.years.flatMap(y => y.months).some(o => o.s === m.s && o.overdrawn));
@@ -1079,7 +1141,7 @@ function updatePreview() {
   } else {
     const newShort = after.ledger.filter(l => l.short > 0 && drafts.some(d => parse(d.date) === l.t));
     const t = parse(drafts[0].date);
-    lines.push(`Leave in lieu available on ${niceY(t)}: <b>${num(calc.lieuBalAt(t - DAY))}</b>`);
+    lines.push(`Leave in lieu available on ${niceY(t)}: <b>${whole(calc.lieuBalAt(t - DAY))}</b>`);
     if (newShort.length) lines.push(`<span class="bad">Not enough leave in lieu: short ${num(newShort.reduce((a, l) => a + l.short, 0))} day(s).</span>`);
   }
   box.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
@@ -1116,10 +1178,67 @@ function showTab(id, push = true) {
 }
 
 // ---------- Settings fields ----------
-const FIELDS = ['startDate', 'annual', 'carry', 'yearStart', 'yearEnd', 'years', 'bonusDays', 'bonusEvery', 'maxAnnual', 'policyCarry', 'lieuExpiry'];
-const OPTIONAL = new Set(['maxAnnual', 'lieuExpiry']);
+// Setup fields are a draft until you press Apply. Leave in lieu expiry (on its own tab) applies straight away.
+const SETUP = ['startDate', 'accrualFrom', 'annual', 'carry', 'yearStart', 'yearEnd', 'years', 'bonusDays', 'bonusEvery', 'maxAnnual', 'policyCarry'];
+const OPTIONAL = new Set(['maxAnnual', 'lieuExpiry', 'accrualFrom']);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, MONTH_RE = /^\d{4}-\d{2}$/;
+
 function loadFields() {
-  FIELDS.forEach(f => { const el = $(f); if (document.activeElement !== el) el.value = state[f] ?? ''; });
+  [...SETUP, 'lieuExpiry'].forEach(f => { $(f).value = state[f] ?? ''; $(f).classList.remove('invalid'); });
+  updateApplyBar();
+}
+
+// Read the Setup form: the values, plus anything that needs fixing before it can be applied.
+function readDraft() {
+  const draft = {}, errors = [];
+  const bad = (f, msg) => { errors.push(msg); draft['_bad_' + f] = true; };
+  for (const f of SETUP) {
+    const el = $(f), v = el.value.trim();
+    if (el.type === 'date') {
+      draft[f] = v;
+      if (!DATE_RE.test(v) || Number(v.slice(0, 4)) < 1950) bad(f, `Enter a full date for “${el.closest('label').querySelector('span').textContent}”.`);
+    } else if (f === 'accrualFrom') {
+      draft[f] = v;
+      if (v && !MONTH_RE.test(v)) bad(f, 'Enter the month to start earning leave as YYYY-MM, or leave it blank.');
+    } else {
+      draft[f] = OPTIONAL.has(f) ? (v === '' ? '' : Number(v)) : (v === '' ? 0 : Number(v));
+      if (v !== '' && !Number.isFinite(Number(v))) bad(f, 'Use numbers only.');
+    }
+  }
+  if (!errors.length && draft.yearEnd <= draft.yearStart) bad('yearEnd', 'The working year must end after it starts.');
+  if (!(draft.years >= 1 && draft.years <= 20)) bad('years', 'Plan between 1 and 20 years ahead.');
+  if (draft.annual < 0) bad('annual', 'Leave per year can’t be negative.');
+  return { draft, errors };
+}
+
+const isDirty = d => SETUP.some(f => String(d[f] ?? '') !== String(state[f] ?? ''));
+
+function updateApplyBar(showErrors = false) {
+  const { draft, errors } = readDraft();
+  const dirty = isDirty(draft);
+  SETUP.forEach(f => $(f).classList.toggle('invalid', !!(showErrors && draft['_bad_' + f])));
+  const bar = $('applyBar');
+  bar.classList.toggle('dirty', dirty);
+  bar.classList.toggle('error', showErrors && errors.length > 0);
+  $('applyBtn').disabled = !dirty;
+  $('discardBtn').disabled = !dirty;
+  if (showErrors && errors.length) $('applyMsg').textContent = errors[0];
+  else if (dirty) $('applyMsg').textContent = 'You have changes that aren’t applied yet.';
+  else if (!$('applyMsg').dataset.keep) $('applyMsg').textContent = 'No changes to apply.';
+  document.querySelectorAll('[data-tab="setup"]').forEach(b => b.classList.toggle('dirty', dirty));
+  renderSetup();
+}
+
+function applySetup() {
+  const { draft, errors } = readDraft();
+  if (errors.length) return updateApplyBar(true);
+  SETUP.forEach(f => { state[f] = draft[f]; });
+  ui.viewYear = null;
+  save(); render(); loadFields();
+  const acc = accrualStart();
+  $('applyMsg').textContent = `Applied. Leave is earned from ${acc != null ? monthName(acc) : 'your start date'}.`;
+  $('applyMsg').dataset.keep = '1';
+  setTimeout(() => { delete $('applyMsg').dataset.keep; updateApplyBar(); }, 4000);
 }
 
 // ---------- Events ----------
@@ -1142,25 +1261,20 @@ function wire() {
   });
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1), false));
 
-  // iPhone date pickers may only send "change", desktop browsers send "input" while typing: handle both.
-  const onField = ev => {
-    const f = ev.target.id, v = ev.target.value;
-    if (ev.target.type === 'date') {
-      // Ignore half-typed or cleared dates instead of treating them as "no start date".
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number(v.slice(0, 4)) < 1950) return;
-      if (state[f] === v) return;
-      state[f] = v;
-    } else {
-      state[f] = OPTIONAL.has(f) ? (v === '' ? '' : Number(v)) : (v === '' ? 0 : Number(v));
-    }
+  // Setup: typing only updates the draft; Apply saves it. iPhone pickers may only send "change", so listen to both.
+  const onSetup = ev => {
     // Changing the start of the working year moves the end to one year later.
-    if (f === 'yearStart') { state.yearEnd = fmt(addMonths(parse(v), 12) - DAY); $('yearEnd').value = state.yearEnd; }
-    if (state.yearEnd < state.yearStart) return;
-    save(); render();
+    if (ev.target.id === 'yearStart' && DATE_RE.test(ev.target.value)) $('yearEnd').value = fmt(addMonths(parse(ev.target.value), 12) - DAY);
+    updateApplyBar();
   };
-  FIELDS.forEach(f => { $(f).addEventListener('input', onField); $(f).addEventListener('change', onField); });
-  // Put a cleared date back to the saved value when you leave the field.
-  ['startDate', 'yearStart', 'yearEnd'].forEach(f => $(f).addEventListener('blur', () => { if (!$(f).value) $(f).value = state[f] || ''; }));
+  SETUP.forEach(f => { $(f).addEventListener('input', onSetup); $(f).addEventListener('change', onSetup); });
+  $('applyBtn').addEventListener('click', applySetup);
+  $('discardBtn').addEventListener('click', () => { loadFields(); });
+  $('lieuExpiry').addEventListener('change', ev => {
+    const v = ev.target.value.trim();
+    state.lieuExpiry = v === '' ? '' : Math.max(1, Math.round(Number(v)) || 1);
+    save(); render();
+  });
 
   // Leave form
   $('eType').addEventListener('click', ev => {
@@ -1285,7 +1399,19 @@ let startTab = location.hash.slice(1);
 if (!startTab) { try { startTab = localStorage.getItem(KEY + ':tab') || ''; } catch {} }
 showTab(startTab || 'overview', false);
 // Offline support once the app is opened from a web address (not needed when opened as a file).
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  const opened = Date.now();
+  const hadWorker = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    // Check for a new version on every launch and whenever the app comes back to the front.
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  // A new version took over: reload straight away if the app was only just opened, so you see it now.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadWorker && Date.now() - opened < 15000 && !isDirty(readDraft().draft)) location.reload();
+  });
+}
 </script>
 </body>
 </html>
